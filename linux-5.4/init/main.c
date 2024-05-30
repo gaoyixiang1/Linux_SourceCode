@@ -10,6 +10,8 @@
  *  Simplified starting of init:  Michael A. Griffith <grif@acm.org>
  */
 
+/* 内核的入口点 start_kernel*/
+
 #define DEBUG		/* Enable initcall_debug */
 
 #include <linux/types.h>
@@ -403,6 +405,11 @@ static void __init setup_command_line(char *command_line)
 
 static __initdata DECLARE_COMPLETION(kthreadd_done);
 
+ /*开中断多线程阶段
+  *以并发的方式完成其余的初始化工作，主要是通过kernel_thread函数创建1号进程kernel_init和2号进程kthreadd.
+  *其中1号进程的执行体函数为kernel_init，2号进程的就是除了0、1、2号进程以外的其他所有内核线程祖先。
+  * 当1和2号进程创建完毕之后，差不多内核初始化完成。0号进程是内核自己，它后面的主要工作是循环调用do_idle()
+*/
 noinline void __ref rest_init(void)
 {
 	struct task_struct *tsk;
@@ -572,29 +579,36 @@ void __init __weak arch_call_rest_init(void)
 	rest_init();
 }
 
+/*内核入口函数
+ * 大概分为三个阶段：
+ *				   关中断单线程阶段		   start_kernel     ---->    local_irq_enable
+ *				   开中断单线程阶段		   local_irq_enable ---->      reset_init
+ * 				   开中断多线程阶段		   reset_init
+*/
 asmlinkage __visible void __init start_kernel(void)
 {
 	char *command_line;
 	char *after_dashes;
 
+	//关中断单线程阶段	这一阶段主要完成关中断，然后根据体系结构进行一系列初始化，包含调度器初始化，内存管理初始化工作等工作。
 	set_task_stack_end_magic(&init_task);
 	smp_setup_processor_id();
 	debug_objects_early_init();
 
 	cgroup_init_early();
 
-	local_irq_disable();
+	local_irq_disable(); //启动初期的初始化必须关中断进行
 	early_boot_irqs_disabled = true;
 
 	/*
 	 * Interrupts are still disabled. Do necessary setups, then
 	 * enable them.
 	 */
-	boot_cpu_init();
+	boot_cpu_init();							//设置启动CPU的存在状态
 	page_address_init();
 	pr_notice("%s", linux_banner);
 	early_security_init();
-	setup_arch(&command_line);
+	setup_arch(&command_line);					//根据体系结构进行相关初始化
 	setup_command_line(command_line);
 	setup_nr_cpu_ids();
 	setup_per_cpu_areas();
@@ -624,7 +638,7 @@ asmlinkage __visible void __init start_kernel(void)
 	vfs_caches_init_early();
 	sort_main_extable();
 	trap_init();
-	mm_init();
+	mm_init();					//内存管理初始化
 
 	ftrace_init();
 
@@ -636,7 +650,7 @@ asmlinkage __visible void __init start_kernel(void)
 	 * timer interrupt). Full topology setup happens at smp_init()
 	 * time - but meanwhile we still have a functioning scheduler.
 	 */
-	sched_init();
+	sched_init();				//调度器初始化
 	/*
 	 * Disable preemption - early bootup scheduling is extremely
 	 * fragile until we cpu_idle() for the first time.
@@ -702,6 +716,11 @@ asmlinkage __visible void __init start_kernel(void)
 	early_boot_irqs_disabled = false;
 	local_irq_enable();
 
+
+	/*开中断单线程阶段 
+	*这一阶段打开中断,并以中断的方式来处理其他代码，这一阶段所有的调度有关的子系统都被初始化完成
+	*意味着接下来可以创建线程,以多线程并发的方式继续启动内核
+	*/
 	kmem_cache_init_late();
 
 	/*
@@ -755,7 +774,7 @@ asmlinkage __visible void __init start_kernel(void)
 #endif
 	thread_stack_cache_init();
 	cred_init();
-	fork_init();
+	fork_init();//初始化fork系统调用所需的数据结构
 	proc_caches_init();
 	uts_ns_init();
 	buffer_init();
@@ -779,6 +798,8 @@ asmlinkage __visible void __init start_kernel(void)
 	acpi_subsystem_init();
 	arch_post_acpi_subsys_init();
 	sfi_init_late();
+
+	//开中断多线程阶段
 
 	/* Do the rest non-__init'ed, we're now alive */
 	arch_call_rest_init();
