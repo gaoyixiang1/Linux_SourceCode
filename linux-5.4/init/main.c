@@ -409,6 +409,7 @@ static __initdata DECLARE_COMPLETION(kthreadd_done);
   *以并发的方式完成其余的初始化工作，主要是通过kernel_thread函数创建1号进程kernel_init和2号进程kthreadd.
   *其中1号进程的执行体函数为kernel_init，2号进程的就是除了0、1、2号进程以外的其他所有内核线程祖先。
   * 当1和2号进程创建完毕之后，差不多内核初始化完成。0号进程是内核自己，它后面的主要工作是循环调用do_idle()
+  * 1号进程执行kernel_init函数，它会调用execve()系统调用装入可执行程序init,最后进程1变成了普通进程
 */
 noinline void __ref rest_init(void)
 {
@@ -421,7 +422,7 @@ noinline void __ref rest_init(void)
 	 * the init task will end up wanting to create kthreads, which, if
 	 * we schedule it before we create kthreadd, will OOPS.
 	 */
-	pid = kernel_thread(kernel_init, NULL, CLONE_FS);
+	pid = kernel_thread(kernel_init, NULL, CLONE_FS);//kernel_thread创建内核线程的函数
 	/*
 	 * Pin init on the boot CPU. Task migration is not properly working
 	 * until sched_init_smp() has been run. It will set the allowed

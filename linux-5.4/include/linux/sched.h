@@ -621,6 +621,8 @@ struct wake_q_node {
 	struct wake_q_node *next;
 };
 
+//进程以及线程的结构体，进程是操作系统中调度的一个实体
+
 struct task_struct {
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 	/*
@@ -665,6 +667,8 @@ struct task_struct {
 	int				recent_used_cpu;
 	int				wake_cpu;
 #endif
+
+/*==================================================================调度相关数据结构=============================================================================*/
 	int				on_rq;
 
 	int				prio;
@@ -723,7 +727,7 @@ struct task_struct {
 	struct plist_node		pushable_tasks;
 	struct rb_node			pushable_dl_tasks;
 #endif
-
+/*==================================================================内存管理相关数据结构=============================================================================*/
 	struct mm_struct		*mm;
 	struct mm_struct		*active_mm;
 
@@ -797,7 +801,7 @@ struct task_struct {
 	 * older sibling, respectively.  (p->father can be replaced with
 	 * p->real_parent->pid)
 	 */
-
+/*==================================================================进程间的关系=============================================================================*/
 	/* Real parent process: */
 	struct task_struct __rcu	*real_parent;
 
@@ -901,6 +905,7 @@ struct task_struct {
 	unsigned long			last_switch_count;
 	unsigned long			last_switch_time;
 #endif
+/*==================================================================文件管理相关数据结构=============================================================================*/
 	/* Filesystem information: */
 	struct fs_struct		*fs;
 

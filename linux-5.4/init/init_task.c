@@ -53,6 +53,9 @@ static struct sighand_struct init_sighand = {
  * Set up the first task table, touch at your own risk!. Base=0,
  * limit=0x1fffff (=2MB)
  */
+
+//Linux内核启动的时候有init_task进程，这个进程是0号进程，也就是系统内的所有进程祖先。该进程在内核启动的时候创建
+
 struct task_struct init_task
 #ifdef CONFIG_ARCH_TASK_STRUCT_ON_STACK
 	__init_task_data
