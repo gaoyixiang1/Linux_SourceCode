@@ -360,6 +360,8 @@ int arch_dup_task_struct(struct task_struct *dst, struct task_struct *src)
 
 asmlinkage void ret_from_fork(void) asm("ret_from_fork");
 
+// 复制父进程 struct pt_regs 线框的全部内容到子进程的线框里，这个线框描述内核栈上保存寄存器的全部信息
+// 在arm64架构下，栈框包括x0-x30 pc sp等信息，其中可以通过寄存器 X0 的值来传递返回值
 int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 		unsigned long stk_sz, struct task_struct *p)
 {
@@ -375,7 +377,7 @@ int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 	 * registers for p.
 	 */
 	fpsimd_flush_task_state(p);
-
+	//处理是子进程是用户进程的情况
 	if (likely(!(p->flags & PF_KTHREAD))) {
 		*childregs = *current_pt_regs();
 		childregs->regs[0] = 0;
@@ -400,6 +402,7 @@ int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 		if (clone_flags & CLONE_SETTLS)
 			p->thread.uw.tp_value = childregs->regs[3];
 	} else {
+		//处理是子进程是内核线程的情况
 		memset(childregs, 0, sizeof(struct pt_regs));
 		childregs->pstate = PSR_MODE_EL1h;
 		if (IS_ENABLED(CONFIG_ARM64_UAO) &&
@@ -415,6 +418,7 @@ int copy_thread(unsigned long clone_flags, unsigned long stack_start,
 		p->thread.cpu_context.x19 = stack_start;
 		p->thread.cpu_context.x20 = stk_sz;
 	}
+	// 设置子进程的进程硬件上下文中PC 和 SP的值，PC 值指向汇编程序 ret_from_fork
 	p->thread.cpu_context.pc = (unsigned long)ret_from_fork;
 	p->thread.cpu_context.sp = (unsigned long)childregs;
 

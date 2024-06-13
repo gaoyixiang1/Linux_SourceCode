@@ -2836,22 +2836,24 @@ static inline void init_schedstats(void) {}
 /*
  * fork()/clone()-time setup:
  */
+//sched_fork()主要用于进程调度的基本初始化
 int sched_fork(unsigned long clone_flags, struct task_struct *p)
 {
 	unsigned long flags;
 
-	__sched_fork(clone_flags, p);
+	__sched_fork(clone_flags, p);		//初始化与调度类相关的数据结构
 	/*
 	 * We mark the process as NEW here. This guarantees that
 	 * nobody will actually run it, and a signal or other external
 	 * event cannot wake it up and insert it on the runqueue either.
 	 */
+	// TASK_NEW 用于保证这个进程不会运行，并且任何信号或者外部的事件不会唤醒这个进程，也不会把这个进程插入运行队列
 	p->state = TASK_NEW;
 
 	/*
 	 * Make sure we do not leak PI boosting priority to the child.
 	 */
-	p->prio = current->normal_prio;
+	p->prio = current->normal_prio;			//新进程继承父进程的优先级
 
 	uclamp_fork(p);
 
@@ -2897,9 +2899,9 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 	 * We're setting the CPU for the first time, we don't migrate,
 	 * so use __set_task_cpu().
 	 */
-	__set_task_cpu(p, smp_processor_id());
+	__set_task_cpu(p, smp_processor_id());		// 为子进程设置 CPU，子进程将来会运行在这个 CPU 上
 	if (p->sched_class->task_fork)
-		p->sched_class->task_fork(p);
+		p->sched_class->task_fork(p);//调用调度类中的task_fork方法，来完成与调度器相关的初始化
 	raw_spin_unlock_irqrestore(&p->pi_lock, flags);
 
 #ifdef CONFIG_SCHED_INFO
@@ -2909,7 +2911,7 @@ int sched_fork(unsigned long clone_flags, struct task_struct *p)
 #if defined(CONFIG_SMP)
 	p->on_cpu = 0;
 #endif
-	init_task_preempt_count(p);
+	init_task_preempt_count(p);	//初始化thread_info中的preempt_count，这个成员是为了内核抢占而引入
 #ifdef CONFIG_SMP
 	plist_node_init(&p->pushable_tasks, MAX_PRIO);
 	RB_CLEAR_NODE(&p->pushable_dl_tasks);

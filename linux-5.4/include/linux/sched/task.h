@@ -18,14 +18,14 @@ union thread_union;
 #define CLONE_LEGACY_FLAGS 0xffffffffULL
 
 struct kernel_clone_args {
-	u64 flags;
-	int __user *pidfd;
-	int __user *child_tid;
-	int __user *parent_tid;
-	int exit_signal;
-	unsigned long stack;
-	unsigned long stack_size;
-	unsigned long tls;
+	u64 flags;					//创建进程的标志位集合 
+	int __user *pidfd;			//指向新进程的pid
+	int __user *child_tid;		//指向子进程的ID，用于让子进程设置自己的id
+	int __user *parent_tid;		//指向父进程的ID，用于在父进程中保存子进程的id
+	int exit_signal;			//用于指定在子进程/线程退出时发送给父进程的信号
+	unsigned long stack; 		//表示用户态栈的起始地址
+	unsigned long stack_size;	//用户态栈大小
+	unsigned long tls;			//传递线程的本地存储,表示线程的本地存储地址
 };
 
 /*

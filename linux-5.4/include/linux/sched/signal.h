@@ -559,9 +559,11 @@ extern void flush_itimer_signals(void);
 #define tasklist_empty() \
 	list_empty(&init_task.tasks)
 
+//用于遍历下一个进程的task_struct结构体
 #define next_task(p) \
 	list_entry_rcu((p)->tasks.next, struct task_struct, tasks)
 
+//用于扫描系统中所有的进程，从init_task开始遍历，直到遍历到init_task为止。
 #define for_each_process(p) \
 	for (p = &init_task ; (p = next_task(p)) != &init_task ; )
 
@@ -584,6 +586,7 @@ extern bool current_is_single_threaded(void);
 	__for_each_thread((p)->signal, t)
 
 /* Careful: this is a double loop, 'break' won't work as expected. */
+//用于遍历系统中所有的线程，这是个双重循环，遍历每个进程，进而遍历每个进程的线程
 #define for_each_process_thread(p, t)	\
 	for_each_process(p) for_each_thread(p, t)
 
@@ -648,6 +651,7 @@ bool same_thread_group(struct task_struct *p1, struct task_struct *p2)
 	return p1->signal == p2->signal;
 }
 
+//用于遍历线程组的下一个线程的task_struct结构体
 static inline struct task_struct *next_thread(const struct task_struct *p)
 {
 	return list_entry_rcu(p->thread_group.next,

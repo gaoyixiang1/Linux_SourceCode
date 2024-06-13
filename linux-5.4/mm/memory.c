@@ -684,9 +684,11 @@ copy_one_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	struct page *page;
 
 	/* pte contains position in swap or file, so copy. */
+	//pte_present() 判断父进程PTE 对应的页面是否存在内存中
 	if (unlikely(!pte_present(pte))) {
 		swp_entry_t entry = pte_to_swp_entry(pte);
 
+		//是否是交换分区的 PTE
 		if (likely(!non_swap_entry(entry))) {
 			if (swap_duplicate(entry) < 0)
 				return entry.val;
@@ -700,7 +702,9 @@ copy_one_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 				spin_unlock(&mmlist_lock);
 			}
 			rss[MM_SWAPENTS]++;
-		} else if (is_migration_entry(entry)) {
+
+			//是否是迁移的 PTE
+		} else if (is_migration_entry(entry)) { 
 			page = migration_entry_to_page(entry);
 
 			rss[mm_counter(page)]++;
@@ -754,6 +758,7 @@ copy_one_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	 * If it's a COW mapping, write protect it both
 	 * in the parent and the child
 	 */
+	// 如果父进程的VMA 属性是写时复制映射并且是可写属性，那么父进程和子进程对应的PTE 要设置为写保护
 	if (is_cow_mapping(vm_flags) && pte_write(pte)) {
 		ptep_set_wrprotect(src_mm, addr, src_pte);
 		pte = pte_wrprotect(pte);
@@ -763,10 +768,12 @@ copy_one_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	 * If it's a shared mapping, mark it clean in
 	 * the child
 	 */
+	// 如果父进程VMA 属性是共享的进程地址空间，则调用pte_mkclean()清除PTE 的DIETY位
 	if (vm_flags & VM_SHARED)
 		pte = pte_mkclean(pte);
+	// pte_mkold() 函数清除 PTE 中的 PTE_AF 位		
 	pte = pte_mkold(pte);
-
+	// vm_normal_page() 通过父进程的 PTE 来找到对应的物理页面的 page 数据结构，注意这里返回的页面是普通映射的
 	page = vm_normal_page(vma, addr, pte);
 	if (page) {
 		get_page(page);
@@ -777,10 +784,11 @@ copy_one_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	}
 
 out_set_pte:
-	set_pte_at(dst_mm, addr, dst_pte, pte);
+	set_pte_at(dst_mm, addr, dst_pte, pte);		//把PTE 内容设置到子进程对应的dst_pte中
 	return 0;
 }
-
+// 遍历页表的函数
+//参数 addr 和 end 表示 VMA 对应的起始地址和结束地址
 static int copy_pte_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 		   pmd_t *dst_pmd, pmd_t *src_pmd, struct vm_area_struct *vma,
 		   unsigned long addr, unsigned long end)
@@ -820,6 +828,7 @@ again:
 			progress++;
 			continue;
 		}
+		//遍历页表是通过从vma起始地址到结束地址，依次调用了copy_one_pte()函数，利用写时复制技术把父进程的pte内容设置到对应的子进程pte中
 		entry.val = copy_one_pte(dst_mm, src_mm, dst_pte, src_pte,
 							vma, addr, rss);
 		if (entry.val)
@@ -933,7 +942,7 @@ static inline int copy_p4d_range(struct mm_struct *dst_mm, struct mm_struct *src
 	} while (dst_p4d++, src_p4d++, addr = next, addr != end);
 	return 0;
 }
-
+//此函数是复制父进程的进程地址空间相应页表的核心实现函数，它会沿着页表中的PGD P4D PUD PMD 以及 PTE 的方向查询和遍历页表
 int copy_page_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 		struct vm_area_struct *vma)
 {

@@ -17,7 +17,7 @@ static __always_inline struct task_struct *get_current(void)
 {
 	unsigned long sp_el0;
 
-	asm ("mrs %0, sp_el0" : "=r" (sp_el0));//sp_el0寄存器的指向进程，这里通过读取sp_el0寄存器的值 ，再将此值强转成task_struct结构，并返回
+	asm ("mrs %0, sp_el0" : "=r" (sp_el0));//sp_el0寄存器的指向进程结构体，这里通过读取sp_el0寄存器的值 ，即获取到当前进程的task_struct的地址。再将此值强转成task_struct结构，并返回
 
 	return (struct task_struct *)sp_el0;
 }
