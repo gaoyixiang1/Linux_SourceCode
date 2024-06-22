@@ -73,10 +73,10 @@ extern unsigned long empty_zero_page[PAGE_SIZE / sizeof(unsigned long)];
 /*
  * The following only work if pte_present(). Undefined behaviour otherwise.
  */
-#define pte_present(pte)	(!!(pte_val(pte) & (PTE_VALID | PTE_PROT_NONE)))
-#define pte_young(pte)		(!!(pte_val(pte) & PTE_AF))
+#define pte_present(pte)	(!!(pte_val(pte) & (PTE_VALID | PTE_PROT_NONE)))   	// 判断该页是否在内存中
+#define pte_young(pte)		(!!(pte_val(pte) & PTE_AF))							// 判断该页是否被访问过
 #define pte_special(pte)	(!!(pte_val(pte) & PTE_SPECIAL))
-#define pte_write(pte)		(!!(pte_val(pte) & PTE_WRITE))
+#define pte_write(pte)		(!!(pte_val(pte) & PTE_WRITE))						// 判断该页是否有可写属性
 #define pte_user_exec(pte)	(!(pte_val(pte) & PTE_UXN))
 #define pte_cont(pte)		(!!(pte_val(pte) & PTE_CONT))
 #define pte_devmap(pte)		(!!(pte_val(pte) & PTE_DEVMAP))
@@ -91,9 +91,9 @@ extern unsigned long empty_zero_page[PAGE_SIZE / sizeof(unsigned long)];
 	(__boundary - 1 < (end) - 1) ? __boundary : (end);			\
 })
 
-#define pte_hw_dirty(pte)	(pte_write(pte) && !(pte_val(pte) & PTE_RDONLY))
-#define pte_sw_dirty(pte)	(!!(pte_val(pte) & PTE_DIRTY))
-#define pte_dirty(pte)		(pte_sw_dirty(pte) || pte_hw_dirty(pte))
+#define pte_hw_dirty(pte)	(pte_write(pte) && !(pte_val(pte) & PTE_RDONLY))	// 判断该页是否被硬件设置为脏页
+#define pte_sw_dirty(pte)	(!!(pte_val(pte) & PTE_DIRTY))						// 判断该页是否为软件认为的脏页
+#define pte_dirty(pte)		(pte_sw_dirty(pte) || pte_hw_dirty(pte))			// 判断该页是否被写入过
 
 #define pte_valid(pte)		(!!(pte_val(pte) & PTE_VALID))
 /*
@@ -126,33 +126,35 @@ extern unsigned long empty_zero_page[PAGE_SIZE / sizeof(unsigned long)];
 	(pte_access_permitted(pmd_pte(pmd), (write)))
 #define pud_access_permitted(pud, write) \
 	(pte_access_permitted(pud_pte(pud), (write)))
-
+	
+// 清除页表项的标志位
 static inline pte_t clear_pte_bit(pte_t pte, pgprot_t prot)
 {
 	pte_val(pte) &= ~pgprot_val(prot);
 	return pte;
 }
 
+// 设置页表项的标志位
 static inline pte_t set_pte_bit(pte_t pte, pgprot_t prot)
 {
 	pte_val(pte) |= pgprot_val(prot);
 	return pte;
 }
-
+// 设置写保护
 static inline pte_t pte_wrprotect(pte_t pte)
 {
 	pte = clear_pte_bit(pte, __pgprot(PTE_WRITE));
 	pte = set_pte_bit(pte, __pgprot(PTE_RDONLY));
 	return pte;
 }
-
+// 使能写属性
 static inline pte_t pte_mkwrite(pte_t pte)
 {
 	pte = set_pte_bit(pte, __pgprot(PTE_WRITE));
 	pte = clear_pte_bit(pte, __pgprot(PTE_RDONLY));
 	return pte;
 }
-
+// 清除 PTE_DIRTY 并设置 PTE_RDONLY
 static inline pte_t pte_mkclean(pte_t pte)
 {
 	pte = clear_pte_bit(pte, __pgprot(PTE_DIRTY));
@@ -160,7 +162,7 @@ static inline pte_t pte_mkclean(pte_t pte)
 
 	return pte;
 }
-
+// 设置 PTE_DIRTY。若具有可写属性，则清除 PTE_RDONLY
 static inline pte_t pte_mkdirty(pte_t pte)
 {
 	pte = set_pte_bit(pte, __pgprot(PTE_DIRTY));
@@ -170,33 +172,33 @@ static inline pte_t pte_mkdirty(pte_t pte)
 
 	return pte;
 }
-
+// 把此页标记为未访问过
 static inline pte_t pte_mkold(pte_t pte)
 {
 	return clear_pte_bit(pte, __pgprot(PTE_AF));
 }
-
+// 把此页标记为已访问过
 static inline pte_t pte_mkyoung(pte_t pte)
 {
 	return set_pte_bit(pte, __pgprot(PTE_AF));
 }
-
+// 设置 PTE_SPECIAL 标志位，标记该页表项是特殊的页表项，这是软件自定义的
 static inline pte_t pte_mkspecial(pte_t pte)
 {
 	return set_pte_bit(pte, __pgprot(PTE_SPECIAL));
 }
-
+// 设置连续标志位 PTE_CONT
 static inline pte_t pte_mkcont(pte_t pte)
 {
 	pte = set_pte_bit(pte, __pgprot(PTE_CONT));
 	return set_pte_bit(pte, __pgprot(PTE_TYPE_PAGE));
 }
-
+// 清除连续标志位 PTE_CONT
 static inline pte_t pte_mknoncont(pte_t pte)
 {
 	return clear_pte_bit(pte, __pgprot(PTE_CONT));
 }
-
+// 设置该页在内存中。设置 PTE_VALID 标志位
 static inline pte_t pte_mkpresent(pte_t pte)
 {
 	return set_pte_bit(pte, __pgprot(PTE_VALID));
@@ -211,7 +213,7 @@ static inline pte_t pte_mkdevmap(pte_t pte)
 {
 	return set_pte_bit(pte, __pgprot(PTE_DEVMAP | PTE_SPECIAL));
 }
-
+// 参数 ptep 指向页表中的页表项, 参数 pte 表示新的页表项的内容
 static inline void set_pte(pte_t *ptep, pte_t pte)
 {
 	WRITE_ONCE(*ptep, pte);
@@ -220,6 +222,7 @@ static inline void set_pte(pte_t *ptep, pte_t pte)
 	 * Only if the new pte is valid and kernel, otherwise TLB maintenance
 	 * or update_mmu_cache() have the necessary barriers.
 	 */
+	// pte_valid_not_user() 表示该页面不能在用户态访问，即该页面属于内核态，当它被写入硬件页表后，需要调用 dsb() 来保证页表更新完成
 	if (pte_valid_not_user(pte)) {
 		dsb(ishst);
 		isb();
@@ -272,11 +275,13 @@ static inline void __check_racy_pte_update(struct mm_struct *mm, pte_t *ptep,
 		     __func__, pte_val(old_pte), pte_val(pte));
 }
 
+//用于把 PTE 表项写入硬件页表,该函数最终调用的是set_pte()
 static inline void set_pte_at(struct mm_struct *mm, unsigned long addr,
 			      pte_t *ptep, pte_t pte)
 {
+	// pte_present 用来判断页是否在内存中，pte_user_exec 表示该页面属于用户态映射的页面，pte_special 判断该页是否是特殊的页表项
 	if (pte_present(pte) && pte_user_exec(pte) && !pte_special(pte))
-		__sync_icache_dcache(pte);
+		__sync_icache_dcache(pte);		//进行高速缓存的一致性操作
 
 	__check_racy_pte_update(mm, ptep, pte);
 
@@ -500,11 +505,13 @@ static inline phys_addr_t pmd_page_paddr(pmd_t pmd)
 static inline void pte_unmap(pte_t *pte) { }
 
 /* Find an entry in the third-level page table. */
+// 计算该地址在页表中的索引值
 #define pte_index(addr)		(((addr) >> PAGE_SHIFT) & (PTRS_PER_PTE - 1))
 
 #define pte_offset_phys(dir,addr)	(pmd_page_paddr(READ_ONCE(*(dir))) + pte_index(addr) * sizeof(pte_t))
+// 根据虚拟地址（addr）和上一级页表 dir 在页表中查找页表项，返回对应的页表项
 #define pte_offset_kernel(dir,addr)	((pte_t *)__va(pte_offset_phys((dir), (addr))))
-
+// 在 ARMv8 中等同于 pte_offset_kernel(dir,addr)
 #define pte_offset_map(dir,addr)	pte_offset_kernel((dir), (addr))
 
 #define pte_set_fixmap(addr)		((pte_t *)set_fixmap_offset(FIX_PTE, addr))
@@ -520,6 +527,7 @@ static inline void pte_unmap(pte_t *pte) { }
  * Conversion functions: convert a page and protection to a page entry,
  * and a page entry and page directory to the page they refer to.
  */
+// 以 page 和页表属性 prot 作为参数创建一个新的页表项
 #define mk_pte(page,prot)	pfn_pte(page_to_pfn(page),prot)
 
 #if CONFIG_PGTABLE_LEVELS > 2
@@ -625,7 +633,7 @@ static inline phys_addr_t pgd_page_paddr(pgd_t pgd)
 #define pud_set_fixmap(addr)		((pud_t *)set_fixmap_offset(FIX_PUD, addr))
 #define pud_set_fixmap_offset(pgd, addr)	pud_set_fixmap(pud_offset_phys(pgd, addr))
 #define pud_clear_fixmap()		clear_fixmap(FIX_PUD)
-
+// 根据 pgd 来计算该 pgd 所在物理页面的 page 数据结构
 #define pgd_page(pgd)		pfn_to_page(__phys_to_pfn(__pgd_to_phys(pgd)))
 
 /* use ONLY for statically allocated translation tables */
@@ -646,14 +654,14 @@ static inline phys_addr_t pgd_page_paddr(pgd_t pgd)
 
 #define pgd_ERROR(pgd)		__pgd_error(__FILE__, __LINE__, pgd_val(pgd))
 
-/* to find an entry in a page-table-directory */
+//计算对应地址在 pgd 表项中的索引值
 #define pgd_index(addr)		(((addr) >> PGDIR_SHIFT) & (PTRS_PER_PGD - 1))
 
 #define pgd_offset_raw(pgd, addr)	((pgd) + pgd_index(addr))
-
+//根据虚拟地址查找进程的 pgd 表，并返回页表项
 #define pgd_offset(mm, addr)	(pgd_offset_raw((mm)->pgd, (addr)))
 
-/* to find an entry in a kernel page-table-directory */
+/*根据地址查找内核全局的 pgd 页表，并返回页表项*/
 #define pgd_offset_k(addr)	pgd_offset(&init_mm, addr)
 
 #define pgd_set_fixmap(addr)	((pgd_t *)set_fixmap_offset(FIX_PGD, addr))

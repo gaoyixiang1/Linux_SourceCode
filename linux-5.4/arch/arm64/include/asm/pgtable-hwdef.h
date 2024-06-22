@@ -40,35 +40,48 @@
  */
 #define ARM64_HW_PGTABLE_LEVEL_SHIFT(n)	((PAGE_SHIFT - 3) * (4 - (n)) + 3)
 
+//Linux内核默认页面粒度为4KB，则页表的偏移量是从第12位开始的
 #define PTRS_PER_PTE		(1 << (PAGE_SHIFT - 3))
 
 /*
- * PMD_SHIFT determines the size a level 2 page table entry can map.
+ * PMD_SHIFT 决定二级页表项可以映射的大小
  */
 #if CONFIG_PGTABLE_LEVELS > 2
+// PMD_SHIFT宏 表示 PMD 页表在虚拟地址中的起始偏移量
 #define PMD_SHIFT		ARM64_HW_PGTABLE_LEVEL_SHIFT(2)
+// PMD_SIZE 宏表示 一个PMD 页表项所能映射的区域大小
 #define PMD_SIZE		(_AC(1, UL) << PMD_SHIFT)
+// PMD_MASK 宏用来屏蔽虚拟地址中 PT 索引字段的所有位 
 #define PMD_MASK		(~(PMD_SIZE-1))
+// PTRS_PER_PUD 宏表示 PMD 页表中页表项的个数
 #define PTRS_PER_PMD		PTRS_PER_PTE
 #endif
 
 /*
- * PUD_SHIFT determines the size a level 1 page table entry can map.
+ * PUD_SHIFT 决定了1级页表项可以映射的大小
  */
 #if CONFIG_PGTABLE_LEVELS > 3
+// PUD_SHIFT宏 表示 PUD 页表在虚拟地址中的起始偏移量
 #define PUD_SHIFT		ARM64_HW_PGTABLE_LEVEL_SHIFT(1)
+// PUD_SIZE 宏表示 一个PUD 页表项所能映射的区域大小
 #define PUD_SIZE		(_AC(1, UL) << PUD_SHIFT)
+// PUD_MASK 宏用来屏蔽虚拟地址中的 PMD 索引和 PT 索引字段的所有位 
 #define PUD_MASK		(~(PUD_SIZE-1))
+// PTRS_PER_PUD 宏表示 PUD 页表中页表项的个数
 #define PTRS_PER_PUD		PTRS_PER_PTE
 #endif
 
 /*
- * PGDIR_SHIFT determines the size a top-level page table entry can map
+ * PGDIR_SHIFT 决定了顶级页表项可以映射的大小
  * (depending on the configuration, this level can be 0, 1 or 2).
  */
+// PGDIR_SHIFT宏 表示 PGD 页表在虚拟地址中的起始偏移量
 #define PGDIR_SHIFT		ARM64_HW_PGTABLE_LEVEL_SHIFT(4 - CONFIG_PGTABLE_LEVELS)
+// PGDIR_SIZE 宏表示PGD页表项所能映射的区域大小
 #define PGDIR_SIZE		(_AC(1, UL) << PGDIR_SHIFT)
+// PGDIR_MASK 宏用来屏蔽虚拟地址中的PUD 索引和 PMD 索引以及 PT 索引字段的所有位
 #define PGDIR_MASK		(~(PGDIR_SIZE-1))
+// PTRS_PER_PGD 宏表示 PGD 页表中页表项的个数
 #define PTRS_PER_PGD		(1 << (MAX_USER_VA_BITS - PGDIR_SHIFT))
 
 /*
@@ -104,7 +117,7 @@
 /*
  * Hardware page table definitions.
  *
- * Level 1 descriptor (PUD).
+  * L1页表项描述符（PUD）
  */
 #define PUD_TYPE_TABLE		(_AT(pudval_t, 3) << 0)
 #define PUD_TABLE_BIT		(_AT(pudval_t, 1) << 1)
@@ -112,7 +125,7 @@
 #define PUD_TYPE_SECT		(_AT(pudval_t, 1) << 0)
 
 /*
- * Level 2 descriptor (PMD).
+ * L2页表项描述符（PMD）
  */
 #define PMD_TYPE_MASK		(_AT(pmdval_t, 3) << 0)
 #define PMD_TYPE_TABLE		(_AT(pmdval_t, 3) << 0)
@@ -139,7 +152,7 @@
 #define PMD_ATTRINDX_MASK	(_AT(pmdval_t, 7) << 2)
 
 /*
- * Level 3 descriptor (PTE).
+ * L3页表项描述符（PTE）
  */
 #define PTE_VALID		(_AT(pteval_t, 1) << 0)
 #define PTE_TYPE_MASK		(_AT(pteval_t, 3) << 0)

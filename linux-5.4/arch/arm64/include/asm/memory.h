@@ -45,7 +45,9 @@
  */
 #define VA_BITS			(CONFIG_ARM64_VA_BITS)
 #define _PAGE_OFFSET(va)	(-(UL(1) << (va)))
+//PAGE_OFFSET 指的是物理内存在内核空间做线性映射的起始虚拟地址
 #define PAGE_OFFSET		(_PAGE_OFFSET(VA_BITS))
+//KIMAGE_VADDR表示内核映像文件映射到内核空间的起始虚拟地址，该地址也是模块区域的结束虚拟地址的结束地址
 #define KIMAGE_VADDR		(MODULES_END)
 #define BPF_JIT_REGION_START	(KASAN_SHADOW_END)
 #define BPF_JIT_REGION_SIZE	(SZ_128M)

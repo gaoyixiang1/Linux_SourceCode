@@ -722,7 +722,12 @@ struct task_struct {
 
 	struct sched_info		sched_info;
 
-	struct list_head		tasks;
+
+	
+
+	struct list_head		tasks;//系统中所有进程的task_struct链接而成的双向链表，链表头是 init_task 进程，也就是所谓的0进程
+								  // init_task 进程的 task.prev 字段指向链表中最后插入进程的 task_struct 数据结构中的 tasks 成员
+
 #ifdef CONFIG_SMP
 	struct plist_node		pushable_tasks;
 	struct rb_node			pushable_dl_tasks;
@@ -789,8 +794,9 @@ struct task_struct {
 
 	struct restart_block		restart_block;
 
-	pid_t				pid;
-	pid_t				tgid;
+	//一个线程组中所有线程使用和该线程组中主线程相同的pid，即该线程组中第一个线程的pid会被存入task_struct的tgid。同一个进程里每一个线程的task_struct中tgid值都一样
+	pid_t				pid;//线程id
+	pid_t				tgid;//线程组id,即进程id，一个进程其实就是一个线程组。
 
 #ifdef CONFIG_STACKPROTECTOR
 	/* Canary value for the -fstack-protector GCC feature: */
@@ -827,6 +833,8 @@ struct task_struct {
 	/* PID/PID hash table linkage. */
 	struct pid			*thread_pid;
 	struct hlist_node		pid_links[PIDTYPE_MAX];
+	
+	//线程组链表：当该进程有线程组，即（pid==tgid）,则该进程下的线程会被添加到线程组的thread_group链表
 	struct list_head		thread_group;
 	struct list_head		thread_node;
 
@@ -1634,6 +1642,16 @@ union thread_union {
 #ifndef CONFIG_ARCH_TASK_STRUCT_ON_STACK
 	struct task_struct task;
 #endif
+/** v4.0中
+ * task_struct成员stack指向了进程的内核栈，其中栈中存放了一个thread_union 的结构体。栈的底部存了一个thread_info结构体
+ *		栈的顶部往下直到thread_info是内核栈空间，sp寄存器指向进程的栈，因此通过sp寄存器获取进程的栈地址，经过对齐，就能获取到thread_info的指针，最后通过thread_info->task获取task_struct结构体。
+ */
+
+/** v5.0后
+ * 此配置选项表示允许把thread_info数据结构体放到task_struct中，这在arm64中此选项默认打开，有两个好处：
+ *																						1.在某些栈溢出的情况下，防止thread_info数据结构被破坏。
+ *																						2.如果栈的地址被泄露，把thread_info放到task_struct中可以防止进程被攻击或使得攻击变得困难。
+ */
 #ifndef CONFIG_THREAD_INFO_IN_TASK
 	struct thread_info thread_info;
 #endif

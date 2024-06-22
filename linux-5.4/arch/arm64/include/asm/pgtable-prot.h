@@ -11,7 +11,7 @@
 #include <linux/const.h>
 
 /*
- * Software defined PTE bits definition.
+ * 软件定义的 PTE 标志位属性
  */
 #define PTE_WRITE		(PTE_DBM)		 /* same as DBM (51) */
 #define PTE_DIRTY		(_AT(pteval_t, 1) << 55)
