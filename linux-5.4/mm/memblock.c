@@ -1888,11 +1888,11 @@ static int __init early_memblock(char *p)
 	return 0;
 }
 early_param("memblock", early_memblock);
-
+//释放从start到end之间的物理页帧内存，参数start/end分别指的是起始/终止 页帧号。
 static void __init __free_pages_memory(unsigned long start, unsigned long end)
 {
 	int order;
-
+	//计算合适的 order
 	while (start < end) {
 		order = min(MAX_ORDER - 1UL, __ffs(start));
 
@@ -1914,7 +1914,7 @@ static unsigned long __init __free_memory_core(phys_addr_t start,
 
 	if (start_pfn >= end_pfn)
 		return 0;
-
+	//将得到起始地址的内存块传递到函数__free_pages_memory
 	__free_pages_memory(start_pfn, end_pfn);
 
 	return end_pfn - start_pfn;
@@ -1936,6 +1936,7 @@ static unsigned long __init free_low_memory_core_early(void)
 	 *  because in some case like Node0 doesn't have RAM installed
 	 *  low ram will be on Node1
 	 */
+	//通过函数for_each_free_mem_range() 来遍历所有内存块，找出内存块的起始地址和结束地址
 	for_each_free_mem_range(i, NUMA_NO_NODE, MEMBLOCK_NONE, &start, &end,
 				NULL)
 		count += __free_memory_core(start, end);

@@ -991,8 +991,9 @@ u64 __init dt_mem_next_cell(int s, const __be32 **cellp)
 }
 
 /**
- * early_init_dt_scan_memory - Look for and parse memory nodes
+ * early_init_dt_scan_memory - 查找并解析内存节点
  */
+//在内核启动的过程中，用于解析memory 描述的信息从而得到内存的base和 size 信息，最终通过调用 early_init_dt_add_memory_arch() --> memblock_add() 添加到memblock 子系统
 int __init early_init_dt_scan_memory(unsigned long node, const char *uname,
 				     int depth, void *data)
 {

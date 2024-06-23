@@ -38,6 +38,7 @@
  */
 #define PAGE_ALLOC_COSTLY_ORDER 3
 
+//MIGRATE_TYPES 类型如下：
 enum migratetype {
 	MIGRATE_UNMOVABLE,
 	MIGRATE_MOVABLE,
@@ -96,8 +97,8 @@ extern int page_group_by_mobility_disabled;
 			PB_migrate_end, MIGRATETYPE_MASK)
 
 struct free_area {
-	struct list_head	free_list[MIGRATE_TYPES];
-	unsigned long		nr_free;
+	struct list_head	free_list[MIGRATE_TYPES];//free_list有 MIGRATE_TYPES 个链表，相当于 zone 中根据 order的大小由0-（MAX_ORDER - 1）个free_area，每个free_area根据 MIGRATE_TYPES 有几个相应链表
+	unsigned long		nr_free; 
 };
 
 /* Used for pages not on another list */
@@ -358,6 +359,7 @@ struct per_cpu_nodestat {
 
 #endif /* !__GENERATING_BOUNDS.H */
 
+//zone的类型定义
 enum zone_type {
 #ifdef CONFIG_ZONE_DMA
 	/*
@@ -414,12 +416,13 @@ enum zone_type {
 };
 
 #ifndef __GENERATING_BOUNDS_H
-
+// 内存管理区，zone 经常会被访问到，因此这个数据结构要求以 L1 高速缓存对齐
 struct zone {
 	/* Read-mostly fields */
 
 	/* zone watermarks, access with *_wmark_pages(zone) macros */
-	unsigned long _watermark[NR_WMARK];
+	//每个zone 在系统启动的时候会计算出3个水位，分别是最低警戒水位、低水位和高水位，这三个水位会在页面分配器及页面回收当中用到
+	unsigned long _watermark[NR_WMARK];			
 	unsigned long watermark_boost;
 
 	unsigned long nr_reserved_highatomic;
@@ -433,24 +436,24 @@ struct zone {
 	 * recalculated at runtime if the sysctl_lowmem_reserve_ratio sysctl
 	 * changes.
 	 */
-	long lowmem_reserve[MAX_NR_ZONES];
+	long lowmem_reserve[MAX_NR_ZONES];				//防止页面分配器过度使用低端zone的内存
 
 #ifdef CONFIG_NUMA
 	int node;
 #endif
-	struct pglist_data	*zone_pgdat;
-	struct per_cpu_pageset __percpu *pageset;
+	struct pglist_data	*zone_pgdat;		//指向内存节点
+	struct per_cpu_pageset __percpu *pageset;	//维护每个CPU 上的一系列页面，减少自旋锁的争用
 
 #ifndef CONFIG_SPARSEMEM
 	/*
 	 * Flags for a pageblock_nr_pages block. See pageblock-flags.h.
 	 * In SPARSEMEM, this map is stored in struct mem_section
 	 */
-	unsigned long		*pageblock_flags;
+	unsigned long		*pageblock_flags;	// 指向用于存放每个页块的 MIGRATE_TYPES 类型的内存空间，所指向的内存空间大小通过 usemap_size() 函数来计算
 #endif /* CONFIG_SPARSEMEM */
 
 	/* zone_start_pfn == zone_start_paddr >> PAGE_SHIFT */
-	unsigned long		zone_start_pfn;
+	unsigned long		zone_start_pfn;  		//zone的起始页帧号
 
 	/*
 	 * spanned_pages is the total pages spanned by the zone, including
@@ -487,9 +490,9 @@ struct zone {
 	 * mem_hotplug_begin/end(). Any reader who can't tolerant drift of
 	 * present_pages should get_online_mems() to get a stable value.
 	 */
-	atomic_long_t		managed_pages;
-	unsigned long		spanned_pages;
-	unsigned long		present_pages;
+	atomic_long_t		managed_pages;			//zone中被伙伴系统管理的页面数量
+	unsigned long		spanned_pages;			//zone 包含的页面数量
+	unsigned long		present_pages;			//zone实际管理的页面数量
 
 	const char		*name;
 
@@ -510,15 +513,16 @@ struct zone {
 	int initialized;
 
 	/* Write-intensive fields used from the page allocator */
+	//在早期内核（v 4.0）中可以让zone->lock 和 zone->lru_lock 锁分布在不同级别的缓存中, v5.0内核中，zone->lru_lock已经转移到内存节点的 pglist_data 中
 	ZONE_PADDING(_pad1_)
 
 	/* free areas of different sizes */
-	struct free_area	free_area[MAX_ORDER];
+	struct free_area	free_area[MAX_ORDER];		//伙伴系统的核心数据结构，管理空闲页块链表的数组
 
 	/* zone flags, see below */
 	unsigned long		flags;
 
-	/* Primarily protects free_area */
+	// 并行访问时用于保护 zone 的自旋锁
 	spinlock_t		lock;
 
 	/* Write-intensive fields used by compaction and vmstats. */
@@ -560,7 +564,7 @@ struct zone {
 
 	ZONE_PADDING(_pad3_)
 	/* Zone statistics */
-	atomic_long_t		vm_stat[NR_VM_ZONE_STAT_ITEMS];
+	atomic_long_t		vm_stat[NR_VM_ZONE_STAT_ITEMS];			//zone计数值
 	atomic_long_t		vm_numa_stat[NR_VM_NUMA_STAT_ITEMS];
 } ____cacheline_internodealigned_in_smp;
 

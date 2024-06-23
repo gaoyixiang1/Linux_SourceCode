@@ -4,7 +4,7 @@
  * taken from the i386 version by Russell King
  * Written by Martin Mares <mj@atrey.karlin.mff.cuni.cz>
  */
-//在编译目标文件(.o)之后，将目标文件打包成二进制可执行文件。该链接文件也控制了代码段的起始地址
+//链接脚本，把大量编译好的二进制文件(.o)整合为一个二进制可执行文件
 #include <asm-generic/vmlinux.lds.h>
 #include <asm/cache.h>
 #include <asm/kernel-pgtable.h>

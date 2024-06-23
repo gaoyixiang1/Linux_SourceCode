@@ -1434,6 +1434,7 @@ static void __free_pages_ok(struct page *page, unsigned int order)
 	local_irq_restore(flags);
 }
 
+//得到order之后，调用该函数来添加内存块到伙伴系统中
 void __free_pages_core(struct page *page, unsigned int order)
 {
 	unsigned int nr_pages = 1 << order;
@@ -1451,7 +1452,7 @@ void __free_pages_core(struct page *page, unsigned int order)
 
 	atomic_long_add(nr_pages, &page_zone(page)->managed_pages);
 	set_page_refcounted(page);
-	__free_pages(page, order);
+	__free_pages(page, order);		//伙伴系统的核心函数，按照 order 的方式把内存块添加内存到伙伴系统当中
 }
 
 #if defined(CONFIG_HAVE_ARCH_EARLY_PFN_TO_NID) || \
@@ -1493,7 +1494,7 @@ static inline bool __meminit early_pfn_in_nid(unsigned long pfn, int node)
 }
 #endif
 
-
+//最终通过__free_pages_core来实现添加空闲块到或伙伴系统中
 void __init memblock_free_pages(struct page *page, unsigned long pfn,
 							unsigned int order)
 {
@@ -5876,6 +5877,7 @@ overlap_memmap_init(unsigned long zone, unsigned long *pfn)
  * up by memblock_free_all() once the early boot process is
  * done. Non-atomic initialization, single-pass.
  */
+
 void __meminit memmap_init_zone(unsigned long size, int nid, unsigned long zone,
 		unsigned long start_pfn, enum memmap_context context,
 		struct vmem_altmap *altmap)
@@ -5938,6 +5940,7 @@ void __meminit memmap_init_zone(unsigned long size, int nid, unsigned long zone,
 		 * pfn out of zone.
 		 */
 		if (!(pfn & (pageblock_nr_pages - 1))) {
+			//设置指定页块的 MIGRATE_TYPES 类型
 			set_pageblock_migratetype(page, MIGRATE_MOVABLE);
 			cond_resched();
 		}
@@ -6579,12 +6582,14 @@ static void __init calculate_node_totalpages(struct pglist_data *pgdat,
 }
 
 #ifndef CONFIG_SPARSEMEM
-/*
- * Calculate the size of the zone->blockflags rounded to an unsigned long
- * Start by making sure zonesize is a multiple of pageblock_order by rounding
- * up. Then use 1 NR_PAGEBLOCK_BITS worth of bits per pageblock, finally
- * round what is now in bits to nearest long in bits, then return it in
- * bytes.
+c
+/**
+ * usemap_size - 计算用于一个内存区域（zone）的usemap数组所需的字节数。
+ * zone_start_pfn: 区域开始的页帧号。
+ * zonesize: 区域的页帧数。
+ *
+ * 返回值:
+ *    用于存储usemap数组的字节数。
  */
 static unsigned long __init usemap_size(unsigned long zone_start_pfn, unsigned long zonesize)
 {
@@ -6598,7 +6603,7 @@ static unsigned long __init usemap_size(unsigned long zone_start_pfn, unsigned l
 
 	return usemapsize / 8;
 }
-
+//用于计算和分配 pageblock_flags所需的大小，并且分配内存
 static void __ref setup_usemap(struct pglist_data *pgdat,
 				struct zone *zone,
 				unsigned long zone_start_pfn,
@@ -6607,6 +6612,8 @@ static void __ref setup_usemap(struct pglist_data *pgdat,
 	unsigned long usemapsize = usemap_size(zone_start_pfn, zonesize);
 	zone->pageblock_flags = NULL;
 	if (usemapsize) {
+
+		//分配内存并让zone->pageblock_flags指向这段内存
 		zone->pageblock_flags =
 			memblock_alloc_node(usemapsize, SMP_CACHE_BYTES,
 					    pgdat->node_id);
@@ -6657,6 +6664,7 @@ void __init set_pageblock_order(void)
 
 #endif /* CONFIG_HUGETLB_PAGE_SIZE_VARIABLE */
 
+//用于计算mem_map的大小,计算方法：zone中的页面数量 * page大小
 static unsigned long __init calc_memmap_size(unsigned long spanned_pages,
 						unsigned long present_pages)
 {
@@ -6746,14 +6754,15 @@ void __ref free_area_init_core_hotplug(int nid)
 #endif
 
 /*
- * Set up the zone data structures:
- *   - mark all pages reserved
- *   - mark all memory queues empty
- *   - clear the memory bitmaps
+ *建立区域数据结构:
+ * -标记所有页面保留
+ * -将所有内存队列标记为空
+ * -清除内存位图
  *
- * NOTE: pgdat should get zeroed by caller.
- * NOTE: this function is only called during early init.
+ *注意:pgdat应该被调用者归零。
+ *注意:此函数仅在初始化早期被调用
  */
+//zone的初始化函数，调用关系如下：free_area_init_core() --> setup_usemap() -->  usemap_size()
 static void __init free_area_init_core(struct pglist_data *pgdat)
 {
 	enum zone_type j;
@@ -6813,8 +6822,10 @@ static void __init free_area_init_core(struct pglist_data *pgdat)
 			continue;
 
 		set_pageblock_order();
+		// 调用 setup_usemap() 函数计算和分配 pageblock_flags 所需要的大小，并且分配相应的内存
 		setup_usemap(pgdat, zone, zone_start_pfn, size);
 		init_currently_empty_zone(zone, zone_start_pfn, size);
+		// 调用 memmap_init() 来初始化所有的页面迁移类型设置为 MIGRATE_MOVABLE 类型，memmap_init 最终通过 memmap_init_zone（）来实现
 		memmap_init(size, nid, j, zone_start_pfn);
 	}
 }

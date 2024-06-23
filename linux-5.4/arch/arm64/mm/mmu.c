@@ -693,7 +693,7 @@ void __init paging_init(void)
 	// swapper_pg_dir 是内核页表的 PGD 页表虚拟基地址，__pa_symbol() 宏把内核符号的虚拟地址转换为物理地址
 	// pgd_set_fixmap() 函数把 swapper_pg_dir 页表重新映射到固定映射区域，返回 PGD 页表的虚拟地址
 	pgd_t *pgdp = pgd_set_fixmap(__pa_symbol(swapper_pg_dir));
-	// 对内核映像文件的各个块重新映射
+	// 对内核映像文件的各个块重新映射，映射内核映像到内核空间的虚拟地址，这块区域是vmalloc区域
 	map_kernel(pgdp);	
 	// 物理内存的线性映射			
 	map_mem(pgdp);

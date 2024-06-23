@@ -225,7 +225,7 @@ static __always_inline bool variable_test_bit(long nr, volatile const unsigned l
 	 : variable_test_bit((nr), (addr)))
 
 /**
- * __ffs - find first set bit in word
+ * __ffs - 在word中找到第一个设置为1的位
  * @word: The word to search
  *
  * Undefined if no bit exists, so code should check against 0 first.

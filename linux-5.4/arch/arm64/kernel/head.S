@@ -106,20 +106,20 @@ pe_header:
 	 *                                        current RELR displacement
 	 */
 ENTRY(stext)
-	bl	preserve_boot_args
-	bl	el2_setup			// Drop to EL1, w0=cpu_boot_mode
+	bl	preserve_boot_args // 保存启动参数 x0-x3到 boot_args[] 数组中
+	bl	el2_setup			// 把模式切换到el1以运行 Linux 内核
 	adrp	x23, __PHYS_OFFSET
 	and	x23, x23, MIN_KIMG_ALIGN - 1	// KASLR offset, defaults to 0
-	bl	set_cpu_boot_mode_flag
-	bl	__create_page_tables
+	bl	set_cpu_boot_mode_flag     //设置 __boot_cpu_mode[] 变量，__boot_cpu_mode[] 是系统定义的一个全局变量，用来记录处理器是在哪个异常等级启动的
+	bl	__create_page_tables		// 创建恒等映射页表以及内核映像映射页表
 	/*
 	 * The following calls CPU setup code, see arch/arm64/mm/proc.S for
 	 * details.
 	 * On return, the CPU will be ready for the MMU to be turned on and
 	 * the TCR will have been set.
 	 */
-	bl	__cpu_setup			// initialise processor
-	b	__primary_switch
+	bl	__cpu_setup			// initialise processor 为打开 MMU 做一些与处理器相关的初始化
+	b	__primary_switch    // 启动 MMU 并跳转到 start_kernel 函数中
 ENDPROC(stext)
 
 /*

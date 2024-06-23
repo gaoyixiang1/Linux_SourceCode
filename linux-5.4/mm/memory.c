@@ -91,7 +91,7 @@
 unsigned long max_mapnr;
 EXPORT_SYMBOL(max_mapnr);
 
-struct page *mem_map;
+struct page *mem_map;			//	page数组，可以实现快速的把虚拟地址映射到物理地址
 EXPORT_SYMBOL(mem_map);
 #endif
 

@@ -128,6 +128,7 @@
  *	on top of these routines, since that is our interface to the mmu_gather
  *	API as used by munmap() and friends.
  */
+// 使本地 CPU 对应的整个 TLB 无效
 static inline void local_flush_tlb_all(void)
 {
 	dsb(nshst);
@@ -135,15 +136,15 @@ static inline void local_flush_tlb_all(void)
 	dsb(nsh);
 	isb();
 }
-
+// 使所有处理器上的整个 TLB (包括内核空间和用户空间的 TLB) 无效
 static inline void flush_tlb_all(void)
 {
-	dsb(ishst);
-	__tlbi(vmalle1is);
-	dsb(ish);
-	isb();
+	dsb(ishst); 	//保证内存访问指令已经完成
+	__tlbi(vmalle1is);  // 使指定的 TLB 无效
+	dsb(ish);		//保证前面的TLBI 指令完成
+	isb();		// 丢弃所有从旧页表映射中获取的指令
 }
-
+//使一个进程中整个用户空间地址的 TLB 无效
 static inline void flush_tlb_mm(struct mm_struct *mm)
 {
 	unsigned long asid = __TLBI_VADDR(0, ASID(mm));
@@ -163,7 +164,7 @@ static inline void flush_tlb_page_nosync(struct vm_area_struct *vma,
 	__tlbi(vale1is, addr);
 	__tlbi_user(vale1is, addr);
 }
-
+// 使虚拟地址 addr 所映射页面的 TLB 页表项无效
 static inline void flush_tlb_page(struct vm_area_struct *vma,
 				  unsigned long uaddr)
 {
@@ -210,7 +211,7 @@ static inline void __flush_tlb_range(struct vm_area_struct *vma,
 	}
 	dsb(ish);
 }
-
+// 使进程地址空间的某段虚拟地址区间（从 start 到 end）对应的 TLB 无效
 static inline void flush_tlb_range(struct vm_area_struct *vma,
 				   unsigned long start, unsigned long end)
 {
@@ -220,7 +221,7 @@ static inline void flush_tlb_range(struct vm_area_struct *vma,
 	 */
 	__flush_tlb_range(vma, start, end, PAGE_SIZE, false);
 }
-
+// 使内核地址空间的某段虚拟地址区间（从 start 到 end）对应的 TLB 无效
 static inline void flush_tlb_kernel_range(unsigned long start, unsigned long end)
 {
 	unsigned long addr;
