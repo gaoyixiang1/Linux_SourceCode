@@ -331,26 +331,7 @@ enum zone_watermarks {
 #define high_wmark_pages(z) (z->_watermark[WMARK_HIGH] + z->watermark_boost)
 #define wmark_pages(z, i) (z->_watermark[i] + z->watermark_boost)
 
-struct per_cpu_pages {
-	int count;		/* number of pages in the list */
-	int high;		/* high watermark, emptying needed */
-	int batch;		/* chunk size for buddy add/remove */
-
-	/* Lists of pages, one per migrate type stored on the pcp-lists */
-	struct list_head lists[MIGRATE_PCPTYPES];
-};
-
-struct per_cpu_pageset {
-	struct per_cpu_pages pcp;
-#ifdef CONFIG_NUMA
-	s8 expire;
-	u16 vm_numa_stat_diff[NR_VM_NUMA_STAT_ITEMS];
-#endif
-#ifdef CONFIG_SMP
-	s8 stat_threshold;
-	s8 vm_stat_diff[NR_VM_ZONE_STAT_ITEMS];
-#endif
-};
+·	
 
 struct per_cpu_nodestat {
 	s8 stat_threshold;
@@ -655,9 +636,10 @@ enum {
  * This struct contains information about a zone in a zonelist. It is stored
  * here to avoid dereferences into large structures and lookups of tables
  */
+//每个zoneref描述一个zone
 struct zoneref {
-	struct zone *zone;	/* Pointer to actual zone */
-	int zone_idx;		/* zone_idx(zoneref->zone) */
+	struct zone *zone;	/* 指向真实的zone */
+	int zone_idx;		/* 根据zone_idx函数获取的idx ，0表示最低*/
 };
 
 /*
@@ -674,6 +656,7 @@ struct zoneref {
  * zonelist_zone_idx()	- Return the index of the zone for an entry
  * zonelist_node_idx()	- Return the index of the node for an entry
  */
+//zonelist结构体是内核管理一个内存节点zone的数据结构
 struct zonelist {
 	struct zoneref _zonerefs[MAX_ZONES_PER_ZONELIST + 1];
 };

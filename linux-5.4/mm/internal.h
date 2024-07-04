@@ -110,13 +110,15 @@ extern pmd_t *mm_find_pmd(struct mm_struct *mm, unsigned long address);
  * in __alloc_pages_slowpath(). All other functions pass the whole strucure
  * by a const pointer.
  */
+
+// alloc_context结构体是一个内部临时使用的结构体
 struct alloc_context {
-	struct zonelist *zonelist;
-	nodemask_t *nodemask;
-	struct zoneref *preferred_zoneref;
-	int migratetype;
-	enum zone_type high_zoneidx;
-	bool spread_dirty_pages;
+	struct zonelist *zonelist; 			//指向每一个内存节点中对应的zonelist
+	nodemask_t *nodemask;				//表示内存节点掩码
+	struct zoneref *preferred_zoneref;	//表示首选的zone的zoneref
+	int migratetype;					//表示迁移类型
+	enum zone_type high_zoneidx;		//分配掩码计算zone的zoneidx，即允许内存分配的最高的zone
+	bool spread_dirty_pages;			//表示是否允许传播脏页
 };
 
 #define ac_classzone_idx(ac) zonelist_zone_idx(ac->preferred_zoneref)
