@@ -2195,8 +2195,7 @@ static void prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags
 }
 
 /*
- * Go through the free lists for the given migratetype and remove
- * the smallest available page from the freelists
+ * 遍历给定迁移类型的空闲链表，并从该链表中移除最小可用的页面
  */
 static __always_inline
 struct page *__rmqueue_smallest(struct zone *zone, unsigned int order,
@@ -2210,7 +2209,7 @@ struct page *__rmqueue_smallest(struct zone *zone, unsigned int order,
 	//从 order 开始查找 zone 中空闲的链表，如果zone对应的空闲链表中相应迁移类型的链表中没有空闲对象，通过Continue直接进入下一次循环，即 order+1 则查找上一级的order 对应的空闲链表
 	for (current_order = order; current_order < MAX_ORDER; ++current_order) {
 		area = &(zone->free_area[current_order]);
-		//如果找到某个order的空闲链表中对应的类型有空闲块，则通过 expand() 来分配
+		//如果找到某个order的空闲链表中对应的类型有空闲块，则先从空闲链表删除，再通过 expand() 来分配
 		page = get_page_from_free_area(area, migratetype);
 		if (!page)
 			continue;
@@ -2229,6 +2228,7 @@ struct page *__rmqueue_smallest(struct zone *zone, unsigned int order,
  * This array describes the order lists are fallen back to when
  * the free lists for the desirable migrate type are depleted
  */
+//描述了通过fallback机制挪用其他迁移类型的空闲页块的顺序，例如分配不可迁移类型页面的时候，根据 fallback[][]数组，优先从可回收的迁移类型挪用、接下来是可迁移类型。
 static int fallbacks[MIGRATE_TYPES][4] = {
 	[MIGRATE_UNMOVABLE]   = { MIGRATE_RECLAIMABLE, MIGRATE_MOVABLE,   MIGRATE_TYPES },
 	[MIGRATE_MOVABLE]     = { MIGRATE_RECLAIMABLE, MIGRATE_UNMOVABLE, MIGRATE_TYPES },
@@ -2402,6 +2402,7 @@ static inline void boost_watermark(struct zone *zone)
  * of pages are free or compatible, we can change migratetype of the pageblock
  * itself, so pages freed in the future will be put on the correct free list.
  */
+
 static void steal_suitable_fallback(struct zone *zone, struct page *page,
 		unsigned int alloc_flags, int start_type, bool whole_block)
 {
@@ -2430,7 +2431,12 @@ static void steal_suitable_fallback(struct zone *zone, struct page *page,
 	 * likelihood of future fallbacks. Wake kswapd now as the node
 	 * may be balanced overall and kswapd will not wake naturally.
 	 */
+
+	//boost_watermark 是内核5.0的新功能，当发生挪用时，使用此功能提高 zone 的水位，设置watermark_boost
 	boost_watermark(zone);
+	//设置 ZONE_BOOSTED_WATERMARK标志
+	//此时在函数 _-rmqueue_fallbacl() 当中，page不为空，满足rmqueue中条件，接着跳转到 out 标号处，此时函数时会检查是否设置 ZONE_BOOSTED_WATERMARK标志，如果设置则唤醒内核线程kswapd回收内存
+	//唤醒内核线程之后，会根据扫描优先级扫描 LRU 链表并尝试回收内存
 	if (alloc_flags & ALLOC_KSWAPD)
 		set_bit(ZONE_BOOSTED_WATERMARK, &zone->flags);
 
@@ -2646,6 +2652,7 @@ static bool unreserve_highatomic_pageblock(const struct alloc_context *ac,
  * deviation from the rest of this file, to make the for loop
  * condition simpler.
  */
+//是否可以从其他迁移类型链表中挪用空闲页块
 static __always_inline bool
 __rmqueue_fallback(struct zone *zone, int order, int start_migratetype,
 						unsigned int alloc_flags)
@@ -2670,6 +2677,7 @@ __rmqueue_fallback(struct zone *zone, int order, int start_migratetype,
 	 * approximates finding the pageblock with the most free pages, which
 	 * would be too costly to do exactly.
 	 */
+	//查找fallbacks[][]数组，判断是否可以从其他迁移类型中迁移空闲页块
 	for (current_order = MAX_ORDER - 1; current_order >= min_order;
 				--current_order) {
 		area = &(zone->free_area[current_order]);
@@ -2686,10 +2694,11 @@ __rmqueue_fallback(struct zone *zone, int order, int start_migratetype,
 		 * allocation falls back into a different pageblock than this
 		 * one, it won't cause permanent fragmentation.
 		 */
+		//如果不能完全偷取整个页面块，并且请求的迁移类型为 MIGRATE_MOVABLE， 则优先偷取并分割最小的可用页面
 		if (!can_steal && start_migratetype == MIGRATE_MOVABLE
 					&& current_order > order)
 			goto find_smallest;
-
+		//否则，跳转到 do_steal 迁移页块
 		goto do_steal;
 	}
 
@@ -2711,16 +2720,19 @@ find_smallest:
 	 */
 	VM_BUG_ON(current_order == MAX_ORDER);
 
+//  从找到的合适的页面块中获取页面进行偷取操作。即尝试从其他迁移类型中迁移空闲页块到请求的迁移类型中
 do_steal:
 	page = get_page_from_free_area(area, fallback_mt);
-
+	//迁移主要动作是在 steal_suitable_fallback() 这个函数中完成的	
 	steal_suitable_fallback(zone, page, alloc_flags, start_migratetype,
 								can_steal);
-
+	//mm_page_alloc_extfrag 记录外碎片化事件的发生
 	trace_mm_page_alloc_extfrag(page, order, current_order,
 		start_migratetype, fallback_mt);
 
 	return true;
+
+	
 
 }
 
@@ -2735,11 +2747,12 @@ __rmqueue(struct zone *zone, unsigned int order, int migratetype,
 	struct page *page;
 
 retry:
+//调用 __rmqueue_smallest 来分配大小 2^order 的页面
 	page = __rmqueue_smallest(zone, order, migratetype);
 	if (unlikely(!page)) {
 		if (migratetype == MIGRATE_MOVABLE)
 			page = __rmqueue_cma_fallback(zone, order);
-
+		// 如果 __rmqueue_smallest() 函数分配失败，则调用 __rmqueue_fallback()
 		if (!page && __rmqueue_fallback(zone, order, migratetype,
 								alloc_flags))
 			goto retry;
@@ -3313,15 +3326,16 @@ struct page *rmqueue(struct zone *preferred_zone,
 	//do-while 循环调用 __rmqueue() 分配内存
 	do {
 		page = NULL;
+		//如果alloc_flags中设置了 ALLOC_HARDER 标志位
 		if (alloc_flags & ALLOC_HARDER) {
-			//调用 __rmqueue_smallest 来将大的内存块切
 			page = __rmqueue_smallest(zone, order, MIGRATE_HIGHATOMIC);
 			if (page)
 				trace_mm_page_alloc_zone_locked(page, order, migratetype);
 		}
-		// 如果分配不成功的话，则调用 __rmqueue() -> __rmqueue_fallback() 去伙伴系统的备份空闲链表（不同迁移类型的空闲链表）挪用内存
+		// 如果上面分配不成功的话或者alloc_flags中没有设置 ALLOC_HARDER，则调用 __rmqueue() -> __rmqueue_fallback() 去伙伴系统的备份空闲链表（不同迁移类型的空闲链表）挪用内存
 		if (!page)
 			page = __rmqueue(zone, order, migratetype, alloc_flags);
+
 	//分配成功之后，check_new_pages() 会去判断页面是否合格
 	} while (page && check_new_pages(page, order));
 	spin_unlock(&zone->lock);
@@ -3337,6 +3351,7 @@ struct page *rmqueue(struct zone *preferred_zone,
 
 out:
 	/* Separate test+clear to avoid unnecessary atomics */
+
 	//当页面分配器触发向备份空闲链表借用内存时，说明系统有外碎片化倾向，所以设置该标志位。
 	// 判断zone->flags是否设置了 ZONE_BOOSTED_WATERMARK 标志位，若该标志位置位，则将其清零
 	if (test_bit(ZONE_BOOSTED_WATERMARK, &zone->flags)) {
@@ -3736,7 +3751,7 @@ retry:
 				/* scanned but unreclaimable */
 				continue;
 			default:
-				/* did we reclaim enough */
+				/*zone_watermark_ok() 为真，即满足分配要求  */
 				if (zone_watermark_ok(zone, order, mark,
 						ac_classzone_idx(ac), alloc_flags))
 					goto try_this_zone;
