@@ -3449,7 +3449,7 @@ ALLOW_ERROR_INJECTION(should_fail_alloc_page, TRUE);
  * one free page of a suitable size. Checking now avoids taking the zone lock
  * to check in the allocation paths if no pages are free.
  */
-//进一步做空闲页面的检查
+//进一步做空闲页面的检查，判断当前zone在分配order阶内存块后水线是否达标
 bool __zone_watermark_ok(struct zone *z, unsigned int order, unsigned long mark,
 			 int classzone_idx, unsigned int alloc_flags,
 			 long free_pages)
@@ -3959,6 +3959,16 @@ out:
 
 #ifdef CONFIG_COMPACTION
 /* Try memory compaction for high-order allocations before reclaim */
+/**
+ * @brief 在低水位之下，alloc_pages() 进入慢速路径分配页面
+ *
+ * @param gfp_mask 调用页面分配器传递的分配掩码，描述页面分配方法的标志
+ * @param order 请求分配页面的大小，order必须小于MAX_ORDER
+ * @param alloc_flags 表示页面分配器内部使用的分配标志位
+ * @param ac 表示页面分配器内部使用的分配上下文描述符
+ * @param prio 内存规整优先级
+ * @param compact_result 内存规整后返回的结果
+*/
 static struct page *
 __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 		unsigned int alloc_flags, const struct alloc_context *ac,
@@ -3973,7 +3983,7 @@ __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 
 	psi_memstall_enter(&pflags);
 	noreclaim_flag = memalloc_noreclaim_save();
-	//调用try_to_compact_pages()来对每个区域进行内存规整
+	//调用try_to_compact_pages()，遍历内存节点当中的所有zone,并对于每个 zone 进行内存规整
 	*compact_result = try_to_compact_pages(gfp_mask, order, alloc_flags, ac,
 								prio, &page);
 
@@ -4564,7 +4574,7 @@ retry_cpuset:
 	 */
 	/* 如果上述在最低警戒水位条件下分配页面失败，在3种情况下可以考虑尝试先调用直接内存规整机制来解决页面分配失败的问题
 	 * 1.允许调用直接页面回收机制
-	 * 2.高成本的分配需求 costly_order，此时，系统可能有足够的空闲内存，但没有分配满足分配需求的连续页面，调用内存规整机制可能解决这个问题。或者对于请求，分配可迁移的多个连续物理页面
+	 * 2.高成本的分配需求 costly_order，此时，系统可能有足够的空闲内存，但没有分配满足分配需求的连续页面，调用内存规整机制可能解决这个问题。或者对于请求，分配不可迁移的多个连续物理页面
 	 * 3.不能访问系统预留内存 gfp_pfmemalloc_allowed() 表示是否允许访问系统预留内存。返回 0 则表示不允许访问预留内存，返回ALLOC_NO_WATERMARKS 表示不用考虑水位，访问全部的预留内存。
 	 *  当同时满足上面三条，就会调用 __alloc_pages_direct_compact() 进行内存规整。
 	 * 

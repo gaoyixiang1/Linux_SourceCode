@@ -21,41 +21,28 @@ enum compact_priority {
 enum compact_result {
 	/* For more detailed tracepoint output - internal to compaction */
 	COMPACT_NOT_SUITABLE_ZONE,
-	/*
-	 * compaction didn't start as it was not possible or direct reclaim
-	 * was more suitable
-	 */
-	COMPACT_SKIPPED,
-	/* compaction didn't start as it was deferred due to past failures */
-	COMPACT_DEFERRED,
+	
+	COMPACT_SKIPPED,/* 内存规整不满足条件，因此退出  */
+	
+	COMPACT_DEFERRED,/* 因为过去的一些错误导致内存规整退出 */
 
 	/* compaction not active last round */
 	COMPACT_INACTIVE = COMPACT_DEFERRED,
 
 	/* For more detailed tracepoint output - internal to compaction */
 	COMPACT_NO_SUITABLE_PAGE,
-	/* compaction should continue to another pageblock */
-	COMPACT_CONTINUE,
+	
+	COMPACT_CONTINUE,/* 表示可以在下一个页块中进行内存规整 */
 
-	/*
-	 * The full zone was compacted scanned but wasn't successfull to compact
-	 * suitable pages.
-	 */
-	COMPACT_COMPLETE,
-	/*
-	 * direct compaction has scanned part of the zone but wasn't successfull
-	 * to compact suitable pages.
-	 */
-	COMPACT_PARTIAL_SKIPPED,
+	COMPACT_COMPLETE,/* 表示已经完成一轮的页面扫描，但没能满足页面分配的请求的需求 */
+	
+	COMPACT_PARTIAL_SKIPPED, /* 根据直接页面回收机制已经扫描了zone中的部分页面，但是没有找到可以进行内存规整的页面*/
 
-	/* compaction terminated prematurely due to lock contentions */
-	COMPACT_CONTENDED,
+	
+	COMPACT_CONTENDED,/* 由于锁竞争导致退出内存规整 */
 
-	/*
-	 * direct compaction terminated after concluding that the allocation
-	 * should now succeed
-	 */
-	COMPACT_SUCCESS,
+	
+	COMPACT_SUCCESS,/*表示已经满足页面分配请求的需求，从而退出此次直接内存规整机制*/
 };
 
 struct alloc_context; /* in mm/internal.h */
