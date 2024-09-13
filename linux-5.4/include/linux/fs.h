@@ -390,6 +390,7 @@ struct address_space_operations {
 	void (*freepage)(struct page *);
 	ssize_t (*direct_IO)(struct kiocb *, struct iov_iter *iter);
 	/*
+	 * migratepage()  会迁移旧页面的内容到新的页面中，并设置 page 对应的成员和属性 
 	 * migrate the contents of a page to the specified target. If
 	 * migrate_mode is MIGRATE_ASYNC, it must not block.
 	 */

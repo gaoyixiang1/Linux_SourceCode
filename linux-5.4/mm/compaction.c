@@ -1421,8 +1421,7 @@ fast_isolate_freepages(struct compact_control *cc)
 }
 
 /*
- * Based on information in the current compact_control, find blocks
- * suitable for isolating free pages from and then isolate them.
+ *isolate_freepages是空闲页扫描器实现，用于查找用于页迁移的空闲页；
  */
 static void isolate_freepages(struct compact_control *cc)
 {
@@ -1459,12 +1458,11 @@ static void isolate_freepages(struct compact_control *cc)
 	stride = cc->mode == MIGRATE_ASYNC ? COMPACT_CLUSTER_MAX : 1;
 
 	/*
-	 * Isolate free pages until enough are available to migrate the
-	 * pages on cc->migratepages. We stop searching if the migrate
-	 * and free page scanners meet or enough free pages are isolated.
+	 * 从cc->free_pfn开始反向遍历寻找一个合适pageblock，随后针对这个pageblock隔离其空闲页
 	 */
 	for (; block_start_pfn >= low_pfn;
 				block_end_pfn = block_start_pfn,
+				//pageblock_nr_pages即为步长
 				block_start_pfn -= pageblock_nr_pages,
 				isolate_start_pfn = block_start_pfn) {
 		unsigned long nr_isolated;
@@ -1538,8 +1536,7 @@ splitmap:
 }
 
 /*
- * This is a migrate-callback that "allocates" freepages by taking pages
- * from the isolated freelists in the block we are migrating to.
+ * 该函数用作内存规整过程中的迁移回调。它通过从隔离的空闲链表中获取页面来分配空闲页面，用于页面迁移.
  */
 static struct page *compaction_alloc(struct page *migratepage,
 					unsigned long data)
@@ -1547,14 +1544,17 @@ static struct page *compaction_alloc(struct page *migratepage,
 	struct compact_control *cc = (struct compact_control *)data;
 	struct page *freepage;
 
+	// 如果隔离的空闲页面链表为空，尝试隔离更多的空闲页面。
 	if (list_empty(&cc->freepages)) {
 		isolate_freepages(cc);
-
+	// 如果仍然没有空闲页面，返回 NULL 表示分配失败
 		if (list_empty(&cc->freepages))
 			return NULL;
 	}
-
+	// 获取链表中的第一个空闲页面
 	freepage = list_entry(cc->freepages.next, struct page, lru);
+
+	// 从链表中移除该页面，减少空闲页面计数。
 	list_del(&freepage->lru);
 	cc->nr_freepages--;
 
@@ -1562,9 +1562,8 @@ static struct page *compaction_alloc(struct page *migratepage,
 }
 
 /*
- * This is a migrate-callback that "frees" freepages back to the isolated
- * freelist.  All pages on the freelist are from the same zone, so there is no
- * special handling needed for NUMA.
+ * 它将  compaction_alloc() 已经分配过的空闲页面释放回隔离的空闲页面链表，以便后续内存规整过程中再次使用。
+ * 所有页面都来自相同的内存区域（zone），因此不需要对 NUMA（非统一内存访问）进行特殊处理。
  */
 static void compaction_free(struct page *page, unsigned long data)
 {
@@ -1576,9 +1575,9 @@ static void compaction_free(struct page *page, unsigned long data)
 
 /* possible outcome of isolate_migratepages */
 typedef enum {
-	ISOLATE_ABORT,		/* Abort compaction now */
-	ISOLATE_NONE,		/* No pages isolated, continue scanning */
-	ISOLATE_SUCCESS,	/* Pages isolated, migrate */
+	ISOLATE_ABORT,		/* 立即中止内存规整 */
+	ISOLATE_NONE,		/* 没有页面可以被隔离，继续扫描 */
+	ISOLATE_SUCCESS,	/* 页面被隔离完毕 */
 } isolate_migrate_t;
 
 /*
@@ -1734,7 +1733,7 @@ static unsigned long fast_find_migrateblock(struct compact_control *cc)
  * compact_control.
  */
 /**
- * isolate_migratepages - 扫描并且寻觅zone中可迁移的页面
+ * isolate_migratepages - 扫描并且寻觅zone中可迁移的页面,把可迁移的页面添加到 cc->migratepages链表中
  * @cc: 表示内存规整内部使用的控制参数
  * 扫描的步长是页块，pageblock
  */
@@ -1844,9 +1843,9 @@ static isolate_migrate_t isolate_migratepages(struct compact_control *cc)
 		break;
 	}
 
-	/* Record where migration scanner will be restarted. */
+	/* 记录本次扫描结束的页帧号，下一次从该位置继续扫描迁移页块 */
 	cc->migrate_pfn = low_pfn;
-
+	
 	return cc->nr_migratepages ? ISOLATE_SUCCESS : ISOLATE_NONE;
 }
 
@@ -2195,7 +2194,7 @@ compact_zone(struct compact_control *cc, struct capture_control *capc)
 				cc->free_pfn, end_pfn, sync); //记录开始规整的事件
 
 	migrate_prep_local();
-	//compact_finished() 函数会判断当前规整是否结束
+	//compact_finished() 函数会判断当前规整是否结束，即是否需要扫描，COMPACT_CONTINUE表示需要继续扫描下一个页块
 	while ((ret = compact_finished(cc)) == COMPACT_CONTINUE) {
 		int err;
 		unsigned long start_pfn = cc->migrate_pfn;
@@ -2218,12 +2217,14 @@ compact_zone(struct compact_control *cc, struct capture_control *capc)
 
 		switch (isolate_migratepages(cc)) {
 		case ISOLATE_ABORT:
+		//如果隔离过程被中止，通过 putback_movable_pages 将已经隔离的页面重新放回内存，再退出
 			ret = COMPACT_CONTENDED;
 			putback_movable_pages(&cc->migratepages);
 			cc->nr_migratepages = 0;
 			last_migrated_pfn = 0;
 			goto out;
 		case ISOLATE_NONE:
+		//如果没有找到任何可以隔离的页面，则检查是否需要刷新之前的迁移操作，并跳转到 check_drain 来清理状态
 			if (update_cached) {
 				cc->zone->compact_cached_migrate_pfn[1] =
 					cc->zone->compact_cached_migrate_pfn[0];
@@ -2236,6 +2237,7 @@ compact_zone(struct compact_control *cc, struct capture_control *capc)
 			 */
 			goto check_drain;
 		case ISOLATE_SUCCESS:
+		//如果隔离成功，更新缓存信息并继续页面迁移,在这里记录此次迁移的起始地址
 			update_cached = false;
 			last_migrated_pfn = start_pfn;
 			;
@@ -2254,8 +2256,7 @@ compact_zone(struct compact_control *cc, struct capture_control *capc)
 			//putback_movable_pages()把以及分离的页面重新添加到LRU链表中
 			putback_movable_pages(&cc->migratepages);
 			/*
-			 * migrate_pages() may return -ENOMEM when scanners meet
-			 * and we want compact_finished() to detect it
+			 * 当扫描器之间已经相遇，或者内存不足，退出循环
 			 */
 			if (err == -ENOMEM && !compact_scanners_met(cc)) {
 				ret = COMPACT_CONTENDED;
