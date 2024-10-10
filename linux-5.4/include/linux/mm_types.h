@@ -289,17 +289,18 @@ struct vm_userfaultfd_ctx {};
  * space that has a special rule for the page-fault handlers (ie a shared
  * library, the executable area etc).
  */
+
+// VMA 数据结构定义
 struct vm_area_struct {
 	/* The first cache line has the info for VMA tree walking. */
 
-	unsigned long vm_start;		/* Our start address within vm_mm. */
-	unsigned long vm_end;		/* The first byte after our end address
-					   within vm_mm. */
+	unsigned long vm_start;		/* VMA 在进程地址空间的起始地址 */
+	unsigned long vm_end;		/*  VMA 在进程地址空间的结束地址 */
 
-	/* linked list of VM areas per task, sorted by address */
+	/* 按地址升序进行排序的进程 VMA 链表 */
 	struct vm_area_struct *vm_next, *vm_prev;
 
-	struct rb_node vm_rb;
+	struct rb_node vm_rb; //VMA作为一个节点加入红黑树，每个进程的 mm_struct 数据结构都有一颗红黑树
 
 	/*
 	 * Largest free memory gap in bytes to the left of this VMA.
@@ -311,9 +312,9 @@ struct vm_area_struct {
 
 	/* Second cache line starts here. */
 
-	struct mm_struct *vm_mm;	/* The address space we belong to. */
-	pgprot_t vm_page_prot;		/* Access permissions of this VMA. */
-	unsigned long vm_flags;		/* Flags, see mm.h. */
+	struct mm_struct *vm_mm;	/* 该VMA 所属进程的 mm_struct 数据结构 */
+	pgprot_t vm_page_prot;		/*  VMA 的访问权限 将VMA 属性转换为与处理器相关的页表项的属性*/
+	unsigned long vm_flags;		/* VMA 的标志，描述其属性 */
 
 	/*
 	 * For areas with an address space and backing store,
@@ -334,13 +335,13 @@ struct vm_area_struct {
 					  * page_table_lock */
 	struct anon_vma *anon_vma;	/* Serialized by page_table_lock */
 
-	/* Function pointers to deal with this struct. */
+	/* 指向许多方法的集合，用于在 VMA 中执行各种操作 */
 	const struct vm_operations_struct *vm_ops;
 
-	/* Information about our backing store: */
+	/* 指定文件映射的偏移量，单位是页面大小 */
 	unsigned long vm_pgoff;		/* Offset (within vm_file) in PAGE_SIZE
 					   units */
-	struct file * vm_file;		/* File we map to (can be NULL). */
+	struct file * vm_file;		/* 指向 file 的实例，描述一个被映射的文件*/
 	void * vm_private_data;		/* was vm_pte (shared mem) */
 
 #ifdef CONFIG_SWAP
@@ -367,26 +368,29 @@ struct core_state {
 };
 
 struct kioctx_table;
+
+//mm_struct 是描述进程内存管理的核心数据结构，该结构提供了管理 VMA 所需要的信息
+
 struct mm_struct {
 	struct {
-		struct vm_area_struct *mmap;		/* list of VMAs */
-		struct rb_root mm_rb;
+		struct vm_area_struct *mmap;		/* VMA的链表，进程中所有的 VMA 都链接到这个链表中 */
+		struct rb_root mm_rb;				//红黑树的根节点。每个进程的 VMA 都是一棵红黑树
 		u64 vmacache_seqnum;                   /* per-thread vmacache */
 #ifdef CONFIG_MMU
 		unsigned long (*get_unmapped_area) (struct file *filp,
 				unsigned long addr, unsigned long len,
 				unsigned long pgoff, unsigned long flags);
 #endif
-		unsigned long mmap_base;	/* base of mmap area */
-		unsigned long mmap_legacy_base;	/* base of mmap area in bottom-up allocations */
+		unsigned long mmap_base;	/* 灵活布局下的mmap区域的基地址 */
+		unsigned long mmap_legacy_base;	/* 传统布局下的mmap区域的基地址 */
 #ifdef CONFIG_HAVE_ARCH_COMPAT_MMAP_BASES
 		/* Base adresses for compatible mmap() */
 		unsigned long mmap_compat_base;
 		unsigned long mmap_compat_legacy_base;
 #endif
-		unsigned long task_size;	/* size of task vm space */
+		unsigned long task_size;	/* 该进程的虚拟地址空间的长度 */
 		unsigned long highest_vm_end;	/* highest vma end address */
-		pgd_t * pgd;
+		pgd_t * pgd;		//指向进程的页表
 
 #ifdef CONFIG_MEMBARRIER
 		/**
@@ -421,24 +425,20 @@ struct mm_struct {
 #ifdef CONFIG_MMU
 		atomic_long_t pgtables_bytes;	/* PTE page table pages */
 #endif
-		int map_count;			/* number of VMAs */
+		int map_count;			/*  VMA 的数目 */
 
 		spinlock_t page_table_lock; /* Protects page tables and some
 					     * counters
 					     */
 		struct rw_semaphore mmap_sem;
 
-		struct list_head mmlist; /* List of maybe swapped mm's.	These
-					  * are globally strung together off
-					  * init_mm.mmlist, and are protected
-					  * by mmlist_lock
-					  */
+		struct list_head mmlist;  /* 所有的 mm_stuct 数据结构都连接到一个双向链表中，该链表的头是init_mm内存描述符，它是init进程的地址空间。*/
 
 
 		unsigned long hiwater_rss; /* High-watermark of RSS usage */
 		unsigned long hiwater_vm;  /* High-water virtual memory usage */
 
-		unsigned long total_vm;	   /* Total pages mapped */
+		unsigned long total_vm;	   /* 已经使用的进程地址空间的总和 */
 		unsigned long locked_vm;   /* Pages that have PG_mlocked set */
 		atomic64_t    pinned_vm;   /* Refcount permanently increased */
 		unsigned long data_vm;	   /* VM_WRITE & ~VM_SHARED & ~VM_STACK */
@@ -447,7 +447,7 @@ struct mm_struct {
 		unsigned long def_flags;
 
 		spinlock_t arg_lock; /* protect the below fields */
-		unsigned long start_code, end_code, start_data, end_data;
+		unsigned long start_code, end_code, start_data, end_data;//代码段及数据段的起始地址
 		unsigned long start_brk, brk, start_stack;
 		unsigned long arg_start, arg_end, env_start, env_end;
 
@@ -462,7 +462,7 @@ struct mm_struct {
 		struct linux_binfmt *binfmt;
 
 		/* Architecture-specific MM context */
-		mm_context_t context;
+		mm_context_t context;	//体系结构相关的内存上下文描述
 
 		unsigned long flags; /* Must use atomic bitops to access */
 

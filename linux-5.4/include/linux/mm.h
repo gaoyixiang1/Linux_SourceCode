@@ -2452,12 +2452,11 @@ extern struct vm_area_struct * find_vma(struct mm_struct * mm, unsigned long add
 extern struct vm_area_struct * find_vma_prev(struct mm_struct * mm, unsigned long addr,
 					     struct vm_area_struct **pprev);
 
-/* Look up the first VMA which intersects the interval start_addr..end_addr-1,
-   NULL if none.  Assume start_addr < end_addr. */
+/* 给定一个地址区间，起始地址为 start_addr，结束地址为 end_addr,在特定进程的mm中查找一个和该区域重叠的 vma ，如果找不到，则返回 NULL */
 static inline struct vm_area_struct * find_vma_intersection(struct mm_struct * mm, unsigned long start_addr, unsigned long end_addr)
 {
 	struct vm_area_struct * vma = find_vma(mm,start_addr);
-
+	// 如果 end_addr 在 vma 的起始地址之前，说明没有交集，将 vma 设置为 NULL
 	if (vma && end_addr <= vma->vm_start)
 		vma = NULL;
 	return vma;

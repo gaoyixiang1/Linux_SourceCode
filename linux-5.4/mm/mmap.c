@@ -531,40 +531,59 @@ anon_vma_interval_tree_post_update_vma(struct vm_area_struct *vma)
 		anon_vma_interval_tree_insert(avc, &avc->anon_vma->rb_root);
 }
 
+/**
+ * @mm: 进程的内存管理结构
+ * @addr: 要查找的起始地址
+ * @end: 要查找的结束地址
+ * @pprev: 指向前一个 VMA 的指针的指针
+ * @rb_link: 指向红黑树链接的指针
+ * @rb_parent: 指向红黑树父节点的指针
+ */
 static int find_vma_links(struct mm_struct *mm, unsigned long addr,
 		unsigned long end, struct vm_area_struct **pprev,
 		struct rb_node ***rb_link, struct rb_node **rb_parent)
 {
 	struct rb_node **__rb_link, *__rb_parent, *rb_prev;
 
+	// 初始化 rb_link 指向红黑树的根节点
 	__rb_link = &mm->mm_rb.rb_node;
-	rb_prev = __rb_parent = NULL;
+	rb_prev = __rb_parent = NULL; 
 
+	// 遍历红黑树
 	while (*__rb_link) {
 		struct vm_area_struct *vma_tmp;
 
+		// 获取当前节点的父节点
 		__rb_parent = *__rb_link;
+		
 		vma_tmp = rb_entry(__rb_parent, struct vm_area_struct, vm_rb);
 
+		// 检查当前 VMA 的结束地址是否大于查找的起始地址
 		if (vma_tmp->vm_end > addr) {
-			/* Fail if an existing vma overlaps the area */
+			//检查是否重叠
 			if (vma_tmp->vm_start < end)
 				return -ENOMEM;
+
+			// 否则，继续在左子树中查找
 			__rb_link = &__rb_parent->rb_left;
 		} else {
+			// 如果当前 VMA 的结束地址不大于 addr，向右子树查找
 			rb_prev = __rb_parent;
 			__rb_link = &__rb_parent->rb_right;
 		}
 	}
 
 	*pprev = NULL;
+
+	// 如果有前一个节点，获取 VMA
 	if (rb_prev)
 		*pprev = rb_entry(rb_prev, struct vm_area_struct, vm_rb);
+	// 设置指向当前插入位置的指针及当前父节点指针
 	*rb_link = __rb_link;
 	*rb_parent = __rb_parent;
-	return 0;
+	
+	return 0; 
 }
-
 static unsigned long count_vma_pages_range(struct mm_struct *mm,
 		unsigned long addr, unsigned long end)
 {
@@ -641,24 +660,35 @@ __vma_link(struct mm_struct *mm, struct vm_area_struct *vma,
 	struct vm_area_struct *prev, struct rb_node **rb_link,
 	struct rb_node *rb_parent)
 {
-	__vma_link_list(mm, vma, prev, rb_parent);
-	__vma_link_rb(mm, vma, rb_link, rb_parent);
+	__vma_link_list(mm, vma, prev, rb_parent);//把VMA添加到mm->mmap链表中
+	__vma_link_rb(mm, vma, rb_link, rb_parent);//把VMA插入红黑树中
 }
-
+/**
+ * vma_link - 将一个虚拟内存区域 (VMA) 连接到进程的内存管理结构中
+ * @mm: 进程的内存管理结构
+ * @vma: 要链接的 VMA
+ * @prev: 链接前的 VMA（如果存在）
+ * @rb_link: 指向红黑树节点的指针
+ * @rb_parent: 红黑树的父节点
+ */
 static void vma_link(struct mm_struct *mm, struct vm_area_struct *vma,
 			struct vm_area_struct *prev, struct rb_node **rb_link,
 			struct rb_node *rb_parent)
 {
-	struct address_space *mapping = NULL;
+	struct address_space *mapping = NULL; // 初始化映射为空
 
+	// 如果 VMA 关联了文件，则获取其映射
 	if (vma->vm_file) {
-		mapping = vma->vm_file->f_mapping;
-		i_mmap_lock_write(mapping);
+		mapping = vma->vm_file->f_mapping; // 获取文件的 address_space
+		i_mmap_lock_write(mapping); // 加锁以进行写操作
 	}
 
+	// 将节点添加到红黑树和链表中
 	__vma_link(mm, vma, prev, rb_link, rb_parent);
+	// 把VMA添加到文件的基数树(radix tree)上
 	__vma_link_file(vma);
 
+	// 如果存在映射
 	if (mapping)
 		i_mmap_unlock_write(mapping);
 
@@ -1140,6 +1170,22 @@ can_vma_merge_after(struct vm_area_struct *vma, unsigned long vm_flags,
  * parameter) may establish ptes with the wrong permissions of NNNN
  * instead of the right permissions of XXXX.
  */
+/**
+ * vma_merge - 合并虚拟内存区域
+ * @mm: 进程的mm struct 数据结构
+ * @prev:紧接着新 VMA前继节点的VMA
+ * @addr: 新 VMA 的起始地址
+ * @end: 新 VMA 的结束地址
+ * @vm_flags: 新VMA的标志
+ * @anon_vma: 匿名 VMA
+ * @file: 如果新VMA属于一个文件映射,file文件指针指向该文件的file数据结构
+ * @pgoff: 页面偏移量
+ * @policy: 内存策略
+ * @vm_userfaultfd_ctx: 用户缺页处理上下文
+ *
+ * 尝试将一个新的虚拟内存区域合并到现有的 VMA 中。
+ * 返回合并后的 VMA，若无法合并则返回 NULL。
+ */
 struct vm_area_struct *vma_merge(struct mm_struct *mm,
 			struct vm_area_struct *prev, unsigned long addr,
 			unsigned long end, unsigned long vm_flags,
@@ -1147,92 +1193,81 @@ struct vm_area_struct *vma_merge(struct mm_struct *mm,
 			pgoff_t pgoff, struct mempolicy *policy,
 			struct vm_userfaultfd_ctx vm_userfaultfd_ctx)
 {
-	pgoff_t pglen = (end - addr) >> PAGE_SHIFT;
+	pgoff_t pglen = (end - addr) >> PAGE_SHIFT; // 计算页面长度
 	struct vm_area_struct *area, *next;
 	int err;
 
-	/*
-	 * We later require that vma->vm_flags == vm_flags,
-	 * so this tests vma->vm_flags & VM_SPECIAL, too.
-	 */
+	// VM_SPECIAL指的是不可合并和不可锁定的多个VMA
 	if (vm_flags & VM_SPECIAL)
 		return NULL;
 
+	// 如果新插入的节点有前继节点，那么next指向prev->vm next;否则指向mm->mmap
 	if (prev)
-		next = prev->vm_next;
+		next = prev->vm_next; 
 	else
 		next = mm->mmap;
-	area = next;
-	if (area && area->vm_end == end)		/* cases 6, 7, 8 */
-		next = next->vm_next;
 
-	/* verify some invariant that must be enforced by the caller */
-	VM_WARN_ON(prev && addr <= prev->vm_start);
-	VM_WARN_ON(area && end > area->vm_end);
-	VM_WARN_ON(addr >= end);
+	area = next; 
+	if (area && area->vm_end == end) 
+		next = next->vm_next; // next移动到下一个 VMA
 
-	/*
-	 * Can it merge with the predecessor?
+	
+	VM_WARN_ON(prev && addr <= prev->vm_start); // 确保 addr 大于 prev 的开始地址
+	VM_WARN_ON(area && end > area->vm_end); // 确保 end 小于等于 area 的结束地址
+	VM_WARN_ON(addr >= end); // 确保 addr 小于 end
+
+	/* 
+	 * 检查是否可以与前一个 VMA 合并
 	 */
-	if (prev && prev->vm_end == addr &&
-			mpol_equal(vma_policy(prev), policy) &&
+	if (prev && prev->vm_end == addr && // 如果 prev 的结束地址等于新区域的起始地址
+			mpol_equal(vma_policy(prev), policy) && // 判断是否可以合并
 			can_vma_merge_after(prev, vm_flags,
 					    anon_vma, file, pgoff,
 					    vm_userfaultfd_ctx)) {
-		/*
-		 * OK, it can.  Can we now merge in the successor as well?
-		 */
-		if (next && end == next->vm_start &&
-				mpol_equal(policy, vma_policy(next)) &&
+		// 可以合并前一个 VMA，检查是否可以合并下一个 VMA
+		if (next && end == next->vm_start && // 如果下一个 VMA 的起始地址等于新区域的结束地址
+				mpol_equal(policy, vma_policy(next)) && // 检查内存策略
 				can_vma_merge_before(next, vm_flags,
 						     anon_vma, file,
 						     pgoff+pglen,
 						     vm_userfaultfd_ctx) &&
 				is_mergeable_anon_vma(prev->anon_vma,
 						      next->anon_vma, NULL)) {
-							/* cases 1, 6 */
+			// 合并前一个和下一个 VMA
 			err = __vma_adjust(prev, prev->vm_start,
 					 next->vm_end, prev->vm_pgoff, NULL,
 					 prev);
-		} else					/* cases 2, 5, 7 */
+		} else // 只能合并前一个 VMA
 			err = __vma_adjust(prev, prev->vm_start,
 					 end, prev->vm_pgoff, NULL, prev);
-		if (err)
+		if (err) // 如果出错，则返回 NULL
 			return NULL;
-		khugepaged_enter_vma_merge(prev, vm_flags);
-		return prev;
+		khugepaged_enter_vma_merge(prev, vm_flags); 
+		return prev; // 返回合并后的 VMA
 	}
 
-	/*
-	 * Can this new request be merged in front of next?
-	 */
-	if (next && end == next->vm_start &&
-			mpol_equal(policy, vma_policy(next)) &&
+	if (next && end == next->vm_start && // 如果新区域的结束地址等于下一个 VMA 的起始地址
+			mpol_equal(policy, vma_policy(next)) && // 检查是否可以合并
 			can_vma_merge_before(next, vm_flags,
 					     anon_vma, file, pgoff+pglen,
 					     vm_userfaultfd_ctx)) {
-		if (prev && addr < prev->vm_end)	/* case 4 */
+		if (prev && addr < prev->vm_end) // 如果有前一个 VMA 并且地址小于其结束地址
 			err = __vma_adjust(prev, prev->vm_start,
-					 addr, prev->vm_pgoff, NULL, next);
-		else {					/* cases 3, 8 */
+					 addr, prev->vm_pgoff, NULL, next); // 调整合并
+		else { // 否则直接合并到下一个 VMA
 			err = __vma_adjust(area, addr, next->vm_end,
 					 next->vm_pgoff - pglen, NULL, next);
-			/*
-			 * In case 3 area is already equal to next and
-			 * this is a noop, but in case 8 "area" has
-			 * been removed and next was expanded over it.
-			 */
-			area = next;
+			
+			area = next; // 更新 area 为下一个 VMA
 		}
-		if (err)
+		if (err) 
 			return NULL;
-		khugepaged_enter_vma_merge(area, vm_flags);
-		return area;
+		khugepaged_enter_vma_merge(area, vm_flags); 
+		return area; // 返回合并后的 VMA
 	}
 
-	return NULL;
+	return NULL; // 如果没有合并，返回 NULL
 }
-
 /*
  * Rough compatbility check to quickly see if it's even worth looking
  * at sharing an anon_vma.
@@ -2241,42 +2276,43 @@ get_unmapped_area(struct file *file, unsigned long addr, unsigned long len,
 
 EXPORT_SYMBOL(get_unmapped_area);
 
-/* Look up the first VMA which satisfies  addr < vm_end,  NULL if none. */
+/* 查找第一个VMA，其满足 addr < vm_end，同时要求开始地址小于等于给定地址 ，找不到，则返回 NULL*/
 struct vm_area_struct *find_vma(struct mm_struct *mm, unsigned long addr)
 {
-	struct rb_node *rb_node;
+	struct rb_node *rb_node; // 红黑树节点指针
 	struct vm_area_struct *vma;
 
-	/* Check the cache first. */
+	/* 首先检查缓存,如果在缓存中找到了满足要求的 vma，则返回。否则要去遍历红黑树去查找 */
 	vma = vmacache_find(mm, addr);
 	if (likely(vma))
 		return vma;
 
 	rb_node = mm->mm_rb.rb_node;
-
+	//遍历红黑树
 	while (rb_node) {
 		struct vm_area_struct *tmp;
 
 		tmp = rb_entry(rb_node, struct vm_area_struct, vm_rb);
-
+		//检查当前 VMA 的结束地址是否大于给定地址
 		if (tmp->vm_end > addr) {
 			vma = tmp;
+			/* 检查当前 VMA 的开始地址是否小于等于给定地址 */
 			if (tmp->vm_start <= addr)
 				break;
-			rb_node = rb_node->rb_left;
+			rb_node = rb_node->rb_left;// 如果当前的vma 的开始地址大于 addr ,则向左子树继续查找
 		} else
-			rb_node = rb_node->rb_right;
+			rb_node = rb_node->rb_right;// 如果当前的vma 的结束地址小于等于 addr，向右子树继续查找
 	}
 
 	if (vma)
-		vmacache_update(addr, vma);
+		vmacache_update(addr, vma);//更新缓存
 	return vma;
 }
 
 EXPORT_SYMBOL(find_vma);
 
 /*
- * Same as find_vma, but also return a pointer to the previous VMA in *pprev.
+ * 类似于 find_vma() ，找到目标 vma 的同时将 目标 vma 的上一个 vma 赋值给 pprev
  */
 struct vm_area_struct *
 find_vma_prev(struct mm_struct *mm, unsigned long addr,
@@ -2288,6 +2324,7 @@ find_vma_prev(struct mm_struct *mm, unsigned long addr,
 	if (vma) {
 		*pprev = vma->vm_prev;
 	} else {
+		//如果没有找到 VMA，则从内存管理结构的红黑树中获取最后一个节点（即最大的 VMA），并将其赋值给 *pprev，如果没有节点则为 NULL。
 		struct rb_node *rb_node = rb_last(&mm->mm_rb);
 
 		*pprev = rb_node ? rb_entry(rb_node, struct vm_area_struct, vm_rb) : NULL;
@@ -3174,42 +3211,33 @@ void exit_mmap(struct mm_struct *mm)
 	vm_unacct_memory(nr_accounted);
 }
 
-/* Insert vm structure into process list sorted by address
- * and into the inode's i_mmap tree.  If vm_file is non-NULL
- * then i_mmap_rwsem is taken here.
- */
+/* 向 VMA 链表和红黑树中插入一个新的 VMA。参数mm是进程的内存描述符， vma 是要插入的 VMA.*/
+
 int insert_vm_struct(struct mm_struct *mm, struct vm_area_struct *vma)
 {
 	struct vm_area_struct *prev;
 	struct rb_node **rb_link, *rb_parent;
 
+	/* 1.查找 VMA 要插入的位置，检查是否存在重叠区域 */
 	if (find_vma_links(mm, vma->vm_start, vma->vm_end,
 			   &prev, &rb_link, &rb_parent))
-		return -ENOMEM;
+		return -ENOMEM; // 如果找到重叠区域，则返回内存不足错误
+
+	
 	if ((vma->vm_flags & VM_ACCOUNT) &&
 	     security_vm_enough_memory_mm(mm, vma_pages(vma)))
-		return -ENOMEM;
+		return -ENOMEM; // 如果内存不足，返回内存不足错误
 
-	/*
-	 * The vm_pgoff of a purely anonymous vma should be irrelevant
-	 * until its first write fault, when page's anon_vma and index
-	 * are set.  But now set the vm_pgoff it will almost certainly
-	 * end up with (unless mremap moves it elsewhere before that
-	 * first wfault), so /proc/pid/maps tells a consistent story.
-	 *
-	 * By setting it to reflect the virtual start address of the
-	 * vma, merges and splits can happen in a seamless way, just
-	 * using the existing file pgoff checks and manipulations.
-	 * Similarly in do_mmap_pgoff and in do_brk.
-	 */
-	if (vma_is_anonymous(vma)) {
+	// 2.如果 VMA 是匿名的,设置 vm_pgoff
+	if (vma_is_anonymous(vma)) { 
 		BUG_ON(vma->anon_vma);
-		vma->vm_pgoff = vma->vm_start >> PAGE_SHIFT;
-	}
-
+		vma->vm_pgoff = vma->vm_start >> PAGE_SHIFT; 
+    }
+	/*3. 将 VMA 链接到链表以及红黑树中 */
 	vma_link(mm, vma, prev, rb_link, rb_parent);
-	return 0;
+	return 0; 
 }
+
 
 /*
  * Copy the vma structure to a new location in the same mm,
