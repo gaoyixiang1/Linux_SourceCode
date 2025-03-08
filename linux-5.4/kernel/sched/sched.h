@@ -225,9 +225,11 @@ dl_entity_preempt(struct sched_dl_entity *a, struct sched_dl_entity *b)
 /*
  * This is the priority-queue data structure of the RT scheduling class:
  */
+//多优先级队列的实现
 struct rt_prio_array {
 	DECLARE_BITMAP(bitmap, MAX_RT_PRIO+1); /* include 1 bit for delimiter */
 	struct list_head queue[MAX_RT_PRIO];
+	//其中MAX_RT_PRIO=100，因为实时进程优先级为0-99，因此对应了100个不同的优先级队列
 };
 
 struct rt_bandwidth {
@@ -487,25 +489,26 @@ struct cfs_bandwidth { };
 #endif	/* CONFIG_CGROUP_SCHED */
 
 /* CFS-related fields in a runqueue */
+//cfs调度器的相关定义
 struct cfs_rq {
-	struct load_weight	load;
-	unsigned long		runnable_weight;
-	unsigned int		nr_running;
+	struct load_weight	load; //调度队列的总负载权重
+	unsigned long		runnable_weight; //运行任务的总负载权重
+	unsigned int		nr_running;		//CFS 运行队列中的任务数
 	unsigned int		h_nr_running;      /* SCHED_{NORMAL,BATCH,IDLE} */
 	unsigned int		idle_h_nr_running; /* SCHED_IDLE */
 
-	u64			exec_clock;
-	u64			min_vruntime;
+	u64			exec_clock;     //该 CFS 队列的累计执行时间
+	u64			min_vruntime;		//当前运行队列中vruntime的最小值
 #ifndef CONFIG_64BIT
 	u64			min_vruntime_copy;
 #endif
 
-	struct rb_root_cached	tasks_timeline;
+	struct rb_root_cached	tasks_timeline;  //保存就绪任务的红黑树
 
-	/*
-	 * 'curr' points to currently running entity on this cfs_rq.
-	 * It is set to NULL otherwise (i.e when none are currently running).
-	 */
+	 /*
+     * 'curr' 指向当前正在运行的 CFS 任务（sched_entity），
+     * 如果没有正在运行的任务，则为 NULL。
+     */
 	struct sched_entity	*curr;
 	struct sched_entity	*next;
 	struct sched_entity	*last;
@@ -525,10 +528,10 @@ struct cfs_rq {
 #endif
 	struct {
 		raw_spinlock_t	lock ____cacheline_aligned;
-		int		nr;
-		unsigned long	load_avg;
-		unsigned long	util_avg;
-		unsigned long	runnable_sum;
+		int		nr;					//最近被移除的任务数
+		unsigned long	load_avg;	//移除任务的负载平均值 
+		unsigned long	util_avg;	//移除任务的利用率平均值
+		unsigned long	runnable_sum; 	// 运行队列的可运行时间总和
 	} removed;
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
@@ -549,7 +552,7 @@ struct cfs_rq {
 #endif /* CONFIG_SMP */
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
-	struct rq		*rq;	/* CPU runqueue to which this cfs_rq is attached */
+	struct rq		*rq;	/* 该 CFS 队列所属的 CPU 运行队列 */
 
 	/*
 	 * leaf cfs_rqs are those that hold tasks (lowest schedulable entity in
@@ -559,8 +562,8 @@ struct cfs_rq {
 	 * leaf_cfs_rq_list ties together list of leaf cfs_rq's in a CPU.
 	 * This list is used during load balance.
 	 */
-	int			on_list;
-	struct list_head	leaf_cfs_rq_list;
+	int			on_list;				//该 CFS 运行队列是否在 leaf_cfs_rq_list 上 
+	struct list_head	leaf_cfs_rq_list;		//连接所有叶子 CFS 运行队列
 	struct task_group	*tg;	/* group that "owns" this runqueue */
 
 #ifdef CONFIG_CFS_BANDWIDTH
@@ -589,9 +592,9 @@ static inline int rt_bandwidth_enabled(void)
 
 /* Real-Time classes' related field in a runqueue: */
 struct rt_rq {
-	struct rt_prio_array	active;
-	unsigned int		rt_nr_running;
-	unsigned int		rr_nr_running;
+	struct rt_prio_array	active; //实时优先级数组，管理当前就绪的实时任务
+	unsigned int		rt_nr_running; //当前运行队列中的实时任务数 
+	unsigned int		rr_nr_running; //运行队列中的轮转调任务数
 #if defined CONFIG_SMP || defined CONFIG_RT_GROUP_SCHED
 	struct {
 		int		curr; /* highest queued rt task prio */
@@ -610,15 +613,15 @@ struct rt_rq {
 	int			rt_queued;
 
 	int			rt_throttled;
-	u64			rt_time;
-	u64			rt_runtime;
+	u64			rt_time; //当前队列已使用的实时运行时间
+	u64			rt_runtime; //分配给该队列的最大实时运行时间 
 	/* Nests inside the rq lock: */
 	raw_spinlock_t		rt_runtime_lock;
 
 #ifdef CONFIG_RT_GROUP_SCHED
 	unsigned long		rt_nr_boosted;
 
-	struct rq		*rq;
+	struct rq		*rq; //指向所属的运行队列
 	struct task_group	*tg;
 #endif
 };
@@ -1496,11 +1499,14 @@ static inline struct task_group *task_group(struct task_struct *p)
 static inline void set_task_rq(struct task_struct *p, unsigned int cpu)
 {
 #if defined(CONFIG_FAIR_GROUP_SCHED) || defined(CONFIG_RT_GROUP_SCHED)
+//获取进程 p 所属的调度组 
 	struct task_group *tg = task_group(p);
 #endif
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
+	//更新进程 p 在 CFS 调度器中的调度队列 
 	set_task_rq_fair(&p->se, p->se.cfs_rq, tg->cfs_rq[cpu]);
+	// 更新新进程的调度实体的运行队列 和父调度实体
 	p->se.cfs_rq = tg->cfs_rq[cpu];
 	p->se.parent = tg->se[cpu];
 #endif
@@ -1520,7 +1526,7 @@ static inline struct task_group *task_group(struct task_struct *p)
 }
 
 #endif /* CONFIG_CGROUP_SCHED */
-
+//为新进程的调度实体设置好运行队列
 static inline void __set_task_cpu(struct task_struct *p, unsigned int cpu)
 {
 	set_task_rq(p, cpu);

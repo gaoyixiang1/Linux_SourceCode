@@ -443,15 +443,16 @@ struct sched_statistics {
 
 struct sched_entity {
 	/* For load-balancing: */
-	struct load_weight		load;
+	struct load_weight		load; 		//当前进程的权重信息
 	unsigned long			runnable_weight;
+	//指向自己在红黑树上的节点位置
 	struct rb_node			run_node;
 	struct list_head		group_node;
 	unsigned int			on_rq;
-
-	u64				exec_start;
-	u64				sum_exec_runtime;
-	u64				vruntime;
+	
+	u64				exec_start;		//进程开始执行的时间，将来用来计算运行时长
+	u64				sum_exec_runtime; 	//记录总的运行时间
+	u64				vruntime;		//进程的虚拟运行时间，也是红黑树的key
 	u64				prev_sum_exec_runtime;
 
 	u64				nr_migrations;
@@ -676,13 +677,13 @@ struct task_struct {
 	int				normal_prio;
 	unsigned int			rt_priority;
 
-	const struct sched_class	*sched_class;
-	struct sched_entity		se;
-	struct sched_rt_entity		rt;
+	const struct sched_class	*sched_class;		//进程的调度策略
+	struct sched_entity		se;						//调度实体
+	struct sched_rt_entity		rt;					//实时任务调度实体
 #ifdef CONFIG_CGROUP_SCHED
 	struct task_group		*sched_task_group;
 #endif
-	struct sched_dl_entity		dl;
+	struct sched_dl_entity		dl;					//dl任务调度实体
 
 #ifdef CONFIG_UCLAMP_TASK
 	/* Clamp values requested for a scheduling entity */
@@ -702,8 +703,9 @@ struct task_struct {
 
 	unsigned int			policy;
 	int				nr_cpus_allowed;
+	//调度亲和性
 	const cpumask_t			*cpus_ptr;
-	cpumask_t			cpus_mask;
+	cpumask_t			cpus_mask;						
 
 #ifdef CONFIG_PREEMPT_RCU
 	int				rcu_read_lock_nesting;
