@@ -340,8 +340,7 @@ static __always_inline enum kmalloc_cache_type kmalloc_type(gfp_t flags)
 }
 
 /*
- * Figure out which kmalloc slab an allocation of a certain size
- * belongs to.
+ * 查找使用的是哪个 slab 缓冲区，根据分配的 size 来判断是哪个
  * 0 = zero alloc
  * 1 =  65 .. 96 bytes
  * 2 = 129 .. 192 bytes
@@ -486,9 +485,9 @@ static __always_inline void *kmalloc_large(size_t size, gfp_t flags)
 }
 
 /**
- * kmalloc - allocate memory
- * @size: how many bytes of memory are required.
- * @flags: the type of memory to allocate.
+ * kmalloc - 分配内存的函数，核心实现是 slab机制
+ * @size: 申请的内存大小
+ * @flags: 申请内存的类型
  *
  * kmalloc is the normal method of allocating memory
  * for objects smaller than page size in the kernel.
